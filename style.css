@@ -93,6 +93,35 @@ body {
     transition: background var(--transition-speed) var(--transition-ease), border var(--transition-speed) var(--transition-ease), box-shadow var(--transition-speed) var(--transition-ease);
 }
 
+.nickname-section {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background-color: var(--secondary-bg-color);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+.nickname-section label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-color-strong);
+}
+.nickname-input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    background-color: var(--input-bg-color);
+    color: var(--text-color);
+    font-size: 0.95rem;
+    box-sizing: border-box;
+}
+.nickname-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-color-faded);
+}
+
 /* --- Header, Tabs, Layout --- */
 .header-area {
     display: flex;
@@ -1614,6 +1643,162 @@ footer a {
 footer a:hover {
     color: var(--primary-accent);
     text-decoration: underline;
+}
+
+.troubleshooting-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: var(--secondary-bg-color);
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    z-index: 1001; /* Ensure it's above other content but below modals */
+    transform: translateY(100%);
+    transition: transform 0.3s ease-in-out;
+    max-height: 40vh; /* Max height */
+    display: flex;
+    flex-direction: column;
+}
+
+.troubleshooting-panel[hidden] {
+    display: none; /* Initially hidden via attribute */
+}
+
+.troubleshooting-panel.open {
+    transform: translateY(0);
+}
+
+.troubleshooting-panel .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background-color: var(--header-bg-color); /* Same as main header or slightly different */
+    border-bottom: 1px solid var(--border-color);
+}
+
+.troubleshooting-panel .panel-header h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-color-strong);
+}
+ .troubleshooting-panel .panel-header h2 i {
+    margin-right: 0.5rem;
+}
+
+.troubleshooting-panel .close-panel-btn {
+    background: none;
+    border: none;
+    color: var(--text-color);
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+ .troubleshooting-panel .close-panel-btn:hover {
+    color: var(--accent-color);
+ }
+
+
+.troubleshooting-panel .panel-content {
+    padding: 1rem;
+    overflow-y: auto; /* Scroll if content exceeds max-height */
+}
+
+.troubleshooting-panel .status-item {
+    margin-bottom: 0.75rem;
+    display: flex;
+    justify-content: space-between; /* Align label and value */
+    align-items: center;
+    padding: 0.5rem;
+    background-color: var(--content-bg-color);
+    border-radius: 4px;
+    border: 1px solid var(--border-color-soft);
+}
+
+.troubleshooting-panel .status-label {
+    font-weight: 500;
+    color: var(--text-color-medium);
+    margin-right: 1rem;
+}
+
+.troubleshooting-panel .status-value {
+    font-family: 'Fira Code', monospace; /* Good for states */
+    color: var(--text-color);
+    background-color: var(--input-bg-color);
+    padding: 0.25rem 0.5rem;
+    border-radius: 3px;
+    font-size:0.9em;
+}
+.troubleshooting-panel .ice-candidates-section {
+    flex-direction: column;
+    align-items: flex-start;
+}
+.troubleshooting-panel .ice-candidates-section textarea {
+    width: 100%;
+    margin-top: 0.5rem;
+    background-color: var(--input-bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.85em;
+    resize: vertical;
+}
+
+.avatar-selection-area {
+    margin-top: 1rem;
+}
+.avatar-selection-area label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+.avatar-options {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap; /* In case of many avatars */
+}
+.avatar-options img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+.avatar-options img:hover {
+    border-color: var(--accent-color-faded);
+}
+.avatar-options img.selected {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 5px var(--accent-color-faded);
+}
+
+.chat-title-avatar {
+    width: 24px; /* Adjust size as needed */
+    height: 24px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle; /* Align with text/icon */
+    border: 1px solid var(--border-color);
+}
+
+/* Styling for avatars in chat messages (preview) */
+.chat-message .message-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    margin-right: 8px;
+    float: left; /* For received messages */
+}
+.chat-message.sent .message-avatar {
+    float: right;
+    margin-left: 8px;
+    margin-right: 0;
+}
+.chat-message .message-content {
+    display: block; /* Or inline-block, manage clearing floats */
+    overflow: hidden; /* To contain the floated avatar's effect */
 }
 
 /* --- Utility & Responsive --- */

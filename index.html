@@ -39,6 +39,9 @@
                     <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle Theme" title="Toggle Theme">
                         <i class="fas fa-sun" aria-hidden="true"></i> <!-- Icon changes with theme -->
                     </button>
+                    <button id="troubleshooting-toggle-btn" class="control-btn" aria-label="Toggle Connection Troubleshooting Panel" title="Connection Info" aria-expanded="false">
+                        <i class="fas fa-network-wired" aria-hidden="true"></i>
+                    </button>
                 </div>
             </header>
 
@@ -67,6 +70,17 @@
                                         <a href="#" id="browse-link">Browse Files</a> or
                                         <label for="folder-input" class="folder-input-label">Select Folder</label>
                                     </small>
+                                </div>
+                            </div>
+
+                            <div id="nickname-section-sender" class="nickname-section" role="region" aria-label="Your session nickname">
+                                <label for="nickname-input-sender">Your Nickname (Optional)</label>
+                                <input type="text" id="nickname-input-sender" class="nickname-input" placeholder="Enter a nickname for this session">
+                                <div class="avatar-selection-area" id="avatar-selection-sender">
+                                    <label>Choose Avatar:</label>
+                                    <div class="avatar-options">
+                                        <!-- Avatars will be populated by JS -->
+                                    </div>
                                 </div>
                             </div>
 
@@ -158,7 +172,7 @@
                         </div>
                         <aside class="side-panel">
                             <div id="chat-panel-sender" class="chat-panel hidden" role="log" aria-label="Chat with receiver">
-                                <h3><i class="fas fa-comments" aria-hidden="true"></i> Chat</h3>
+                                <h3 id="chat-title-sender"><i class="fas fa-comments" aria-hidden="true"></i> Chat</h3>
                                 <ul class="chat-messages" id="chat-messages-sender" aria-live="polite"></ul>
                                 <div class="chat-input-area">
                                     <label for="chat-input-sender" class="visually-hidden">Type your message</label>
@@ -176,6 +190,16 @@
                 <section id="receive-section" class="tab-content" role="tabpanel" aria-labelledby="receive-tab-btn">
                     <div class="main-content-area">
                         <div class="transfer-area">
+                            <div id="nickname-section-receiver" class="nickname-section" role="region" aria-label="Your session nickname">
+                                <label for="nickname-input-receiver">Your Nickname (Optional)</label>
+                                <input type="text" id="nickname-input-receiver" class="nickname-input" placeholder="Enter a nickname for this session">
+                                <div class="avatar-selection-area" id="avatar-selection-receiver">
+                                    <label>Choose Avatar:</label>
+                                    <div class="avatar-options">
+                                        <!-- Avatars will be populated by JS -->
+                                    </div>
+                                </div>
+                            </div>
                             <div id="offer-input-step" class="connection-step" role="region" aria-label="Sender's code input">
                                 <h2><span class="step-number" aria-hidden="true">1</span> Get Sender's Code</h2>
                                 <p class="instructions">Ask the sender for their share code. Scan their QR or paste the text code below.</p>
@@ -261,7 +285,10 @@
                         </div>
                         <aside class="side-panel">
                             <div id="chat-panel-receiver" class="chat-panel hidden" role="log" aria-label="Chat with sender">
-                                <h3><i class="fas fa-comments" aria-hidden="true"></i> Chat</h3>
+                                <h3 id="chat-title-receiver">
+                                    <img src="icons/avatar_default.png" alt="Peer Avatar" class="chat-title-avatar" id="chat-title-avatar-receiver" style="display:none;">
+                                    <i class="fas fa-comments"></i> Chat
+                                </h3>
                                 <ul class="chat-messages" id="chat-messages-receiver" aria-live="polite"></ul>
                                 <div class="chat-input-area">
                                     <label for="chat-input-receiver" class="visually-hidden">Type your message</label>
@@ -307,11 +334,56 @@
         <!-- For Toast Notifications (JS will populate) -->
         <div id="toast-container" class="toast-notification-container" aria-live="assertive" aria-atomic="true"></div>
 
+        <aside id="troubleshooting-panel" class="troubleshooting-panel" role="complementary" aria-labelledby="troubleshooting-title" hidden>
+            <div class="panel-header">
+                <h2 id="troubleshooting-title"><i class="fas fa-network-wired"></i> Connection Status</h2>
+                <button id="close-troubleshooting-btn" class="close-panel-btn" aria-label="Close Connection Troubleshooting Panel" type="button">
+                    <i class="fas fa-times" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="panel-content">
+                <div class="status-item">
+                    <span class="status-label">ICE Connection State:</span>
+                    <span id="ts-ice-connection-state" class="status-value">N/A</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Signaling State:</span>
+                    <span id="ts-signaling-state" class="status-value">N/A</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Data Channel State:</span>
+                    <span id="ts-data-channel-state" class="status-value">N/A</span>
+                </div>
+                <!-- Optional: For ICE Candidates -->
+                <div class="status-item ice-candidates-section">
+                    <span class="status-label">Gathered ICE Candidates:</span>
+                    <textarea id="ts-ice-candidates" readonly rows="5" placeholder="ICE candidates will appear here..."></textarea>
+                </div>
+            </div>
+        </aside>
+
         <footer>
             Powered by WebRTC DataChannel. No servers involved in transfer.
             <br> ShareWave © <span id="current-year">2024</span>.
             <a href="https://github.com/your-repo-link" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+            <br>
+            <button id="show-lan-info-btn" class="btn-link-style" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; margin-top: 0.5rem;">About LAN Sharing</button>
         </footer>
+    </div>
+
+    <div id="lan-sharing-info" style="display:none;">
+        <h4>Local Network (LAN) Sharing</h4>
+        <p>ShareWave is designed for peer-to-peer connections. When devices are on the same Local Area Network (LAN), WebRTC (the technology ShareWave uses) will attempt to establish a direct connection between them for file transfers.</p>
+        <p><strong>How it works with the current version:</strong></p>
+        <ul>
+            <li>You still need to use the QR code or text code to exchange connection details with the other person on your LAN. This is the "discovery" step.</li>
+            <li>Once connection details are exchanged, WebRTC will try to find the most direct path. If both devices are on the same LAN and your network configuration allows it, the file data will typically transfer directly between devices without going over the internet.</li>
+            <li>STUN servers (like stun.l.google.com) might still be used initially to discover your public and local IP addresses, but the actual data transfer can remain local.</li>
+        </ul>
+        <p><strong>True Offline LAN Discovery (e.g., via mDNS):</strong></p>
+        <p>Automatic discovery of other ShareWave users on your LAN without internet (like mDNS or Bonjour) is a feature that is unfortunately <strong>not currently possible</strong> directly within standard web browsers due to security restrictions. Web browsers cannot arbitrarily scan your local network for services.</p>
+        <p>Future browser technologies might enable such features, and we are always looking for ways to improve local sharing.</p>
+        <p><strong>Tip:</strong> You can observe the connection types in the "Connection Troubleshooting Panel". Look for 'host' type ICE candidates, which indicate direct local IP addresses being used or considered.</p>
     </div>
 
     <script src="main.js" defer></script>
