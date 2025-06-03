@@ -43,7 +43,7 @@ ShareWave leverages **WebRTC (Web Real-Time Communication)**, a technology that 
 4.  **Direct Data Transfer:** Once the connection is established, a secure DataChannel is opened directly between the two peers. Files are broken into chunks, sent over this channel, and reassembled by the receiver. No server touches the actual file data.
 5.  **Password & Hashing:** If a password is set, it's hashed on the sender's side. The receiver must provide the same password, which is also hashed. Only the hashes are compared for verification. File hashes (SHA-256) are sent with the metadata to ensure data integrity upon arrival.
 
-## 使い方 (Usage)
+##Usage:-
 
 The application has two main tabs: **Send** and **Receive**.
 
