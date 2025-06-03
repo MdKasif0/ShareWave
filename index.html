@@ -4,9 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ShareWave V5.1 - Zip Download & Fixes</title>
-
+    <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1e1e1e"/> <meta name="description" content="Secure P2P file transfer using WebRTC with QR code, chat, pause/resume, folder zipping, password, and more.">
+    <meta name="theme-color" content="#1e1e1e"/>
+    <meta name="description" content="Secure P2P file transfer using WebRTC with QR code, chat, pause/resume, folder zipping, password, and more.">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -516,6 +517,18 @@
         </footer>
 
     </div> <script src="main.js" defer></script>
-
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+              console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            })
+            .catch(error => {
+              console.log('ServiceWorker registration failed: ', error);
+            });
+        });
+      }
+    </script>
 </body>
 </html>
