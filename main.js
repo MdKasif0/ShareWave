@@ -1,6 +1,6 @@
-// --- ShareWave V5.1 ---
+// --- ShareWave V5.3 (Text Share Removed, Tab State Improved) ---
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Config & Elements (Mostly same as V5) ---
+    // --- Config & Elements ---
     const CHUNK_SIZE = 128 * 1024;
     const MAX_BUFFERED_AMOUNT = 64 * 1024 * 1024;
     const ICE_SERVERS = { iceServers: [ { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:stun.services.mozilla.com' } ] };
@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const SPEED_INTERVAL = 2000;
     const HISTORY_LIMIT = 50;
 
-    // --- Get ALL Elements by ID ---
+    // --- Get ALL Elements by ID (Common) ---
     const themeToggleBtn = document.getElementById('theme-toggle-btn');
     const historyToggleBtn = document.getElementById('history-toggle-btn');
     const historyPanel = document.getElementById('history-panel');
@@ -19,30 +19,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const previewModal = document.getElementById('preview-modal');
     const modalImagePreview = document.getElementById('modal-image-preview');
     const modalVideoPreview = document.getElementById('modal-video-preview');
-    const passwordSectionSender = document.getElementById('password-section-sender');
-    const passwordInputSender = document.getElementById('password-input-sender');
-    const passwordSectionReceiver = document.getElementById('password-section-receiver');
-    const passwordInputReceiver = document.getElementById('password-input-receiver');
-    const verifyPasswordBtn = document.getElementById('verify-password-btn');
-    const pauseResumeBtn = document.getElementById('pause-resume-btn');
-    const cancelTransferBtn = document.getElementById('cancel-transfer-btn');
-    const speedIndicator = document.getElementById('speed-indicator');
-    const etrIndicator = document.getElementById('etr-indicator');
-    const receiveSpeedIndicator = document.getElementById('receive-speed-indicator');
-    const chatPanelSender = document.getElementById('chat-panel-sender');
-    const chatMessagesSender = document.getElementById('chat-messages-sender');
-    const chatInputSender = document.getElementById('chat-input-sender');
-    const chatSendBtnSender = document.getElementById('chat-send-btn-sender');
-    const chatPanelReceiver = document.getElementById('chat-panel-receiver');
-    const chatMessagesReceiver = document.getElementById('chat-messages-receiver');
-    const chatInputReceiver = document.getElementById('chat-input-receiver');
-    const chatSendBtnReceiver = document.getElementById('chat-send-btn-receiver');
-    const downloadAllBtn = document.getElementById('download-all-btn');
-    const downloadZipBtn = document.getElementById('download-zip-btn');
+    const toastContainer = document.getElementById('toast-container');
+    const currentYearSpan = document.getElementById('current-year');
+
+    // --- Tab Buttons & Sections ---
     const sendTabBtn = document.getElementById('send-tab-btn');
     const receiveTabBtn = document.getElementById('receive-tab-btn');
     const sendSection = document.getElementById('send-section');
     const receiveSection = document.getElementById('receive-section');
+
+    // --- File Send Elements ---
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
     const folderInput = document.getElementById('folder-input');
@@ -50,6 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectedFilesSection = document.getElementById('selected-files-section');
     const fileSummarySpan = document.getElementById('file-summary');
     const selectedFilesList = document.getElementById('selected-files-list');
+    const passwordSectionSender = document.getElementById('password-section-sender');
+    const passwordInputSender = document.getElementById('password-input-sender');
     const generateBtn = document.getElementById('generate-btn');
     const offerStep = document.getElementById('offer-step');
     const offerQrCodeDiv = document.getElementById('offer-qr-code');
@@ -66,6 +54,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendProgressLabel = document.getElementById('send-progress-label');
     const sendProgressBar = document.getElementById('send-progress-bar');
     const sendProgressText = document.getElementById('send-progress-text');
+    const pauseResumeBtn = document.getElementById('pause-resume-btn');
+    const cancelTransferBtn = document.getElementById('cancel-transfer-btn');
+    const speedIndicator = document.getElementById('speed-indicator');
+    const etrIndicator = document.getElementById('etr-indicator');
+    const chatPanelSender = document.getElementById('chat-panel-sender');
+    const chatMessagesSender = document.getElementById('chat-messages-sender');
+    const chatInputSender = document.getElementById('chat-input-sender');
+    const chatSendBtnSender = document.getElementById('chat-send-btn-sender');
+
+    // --- File Receive Elements ---
     const offerInputStep = document.getElementById('offer-input-step');
     const scanOfferQrBtn = document.getElementById('scan-offer-qr-btn');
     const offerScannerArea = document.getElementById('offer-scanner-area');
@@ -77,6 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const answerQrCodeDiv = document.getElementById('answer-qr-code');
     const answerSdpOutputTextarea = document.getElementById('answer-sdp-output');
     const receiverWaitMessage = document.getElementById('receiver-wait-message');
+    const passwordSectionReceiver = document.getElementById('password-section-receiver');
+    const passwordInputReceiver = document.getElementById('password-input-receiver');
+    const verifyPasswordBtn = document.getElementById('verify-password-btn');
     const receiveStatusSection = document.getElementById('receive-status-section');
     const receiveStatusMessage = document.getElementById('receive-status-message');
     const receiveProgressLabel = document.getElementById('receive-progress-label');
@@ -84,100 +85,366 @@ document.addEventListener('DOMContentLoaded', () => {
     const receiveProgressText = document.getElementById('receive-progress-text');
     const receivedFilesSection = document.getElementById('received-files-section');
     const receivedFilesList = document.getElementById('received-files-list');
+    const downloadAllBtn = document.getElementById('download-all-btn');
+    const downloadZipBtn = document.getElementById('download-zip-btn');
+    const receiveSpeedIndicator = document.getElementById('receive-speed-indicator');
+    const chatPanelReceiver = document.getElementById('chat-panel-receiver');
+    const chatMessagesReceiver = document.getElementById('chat-messages-receiver');
+    const chatInputReceiver = document.getElementById('chat-input-receiver');
+    const chatSendBtnReceiver = document.getElementById('chat-send-btn-receiver');
+
 
     // --- State Variables ---
     let peerConnection;
     let dataChannel;
-    let filesToSend = [];
+    let activeTab = 'send'; // 'send', 'receive'
+    let isSenderRole = true; // True if user is on Send Tab, false for Receive Tab. This defines the role.
+
+    // --- Tab-Specific State Objects ---
+    // These objects will hold the state for each tab to persist data on switching
+    let sendTabState = {
+        filesToSend: [],
+        totalBytesToSend: 0,
+        passwordInputSenderValue: '',
+        offerSdpTextareaValue: '',
+        answerSdpTextareaValue: '',
+        isPasswordSectionSenderVisible: false,
+        isSelectedFilesSectionVisible: false,
+        isOfferStepVisible: false,
+        isAnswerStepVisible: false,
+        isGenerateBtnDisabled: true,
+        chatMessages: []
+    };
+
+    let receiveTabState = {
+        offerSdpInputTextareaValue: '',
+        answerSdpOutputTextareaValue: '',
+        passwordInputReceiverValue: '',
+        isPasswordSectionReceiverVisible: false,
+        isAnswerOutputStepVisible: false,
+        isReceiverWaitMessageVisible: true,
+        chatMessages: []
+    };
+
+
     let currentFileIndex = 0;
     let currentFileOffset = 0;
-    let totalBytesToSend = 0;
     let totalBytesSent = 0;
-    let isSender = true;
+
     let offerQrScanner = null;
     let answerQrScanner = null;
     let receiveBuffer = [];
     let receivedSize = 0;
-    let filesMetadata = null;
+    let filesMetadata = null; // For file sharing
     let currentReceivingFileIndex = 0;
     let currentFileReceivedSize = 0;
-    let receivedFiles = []; // Stores { blob, name, type, path }
-    let objectUrls = []; // For previews and downloads
-    let passwordHash = null; // Stores hash of sender's password if set
+    let receivedFiles = [];
+    let objectUrls = [];
+    let passwordHash = null; // Only relevant during an active connection attempt
     let transferPaused = false;
     let speedIntervalId = null;
     let lastMeasurementTime = 0;
     let lastMeasurementSentBytes = 0;
     let lastMeasurementReceivedBytes = 0;
-    let isPasswordRequiredBySender = false; // Receiver flag
+    let isPasswordRequiredBySender = false; // Also reset with connection
     let transferStartTime = 0;
+    let connectionInProgress = false; // Flag to indicate if a WebRTC connection process has started
 
-    // --- Crypto Check ---
     const cryptoAvailable = window.crypto && window.crypto.subtle;
     if (!cryptoAvailable) {
         console.warn("Web Crypto API not available (requires secure context: HTTPS or localhost). File hashing/password verification disabled.");
-        // Optionally disable password input or show a warning to the user
-        // passwordSectionSender.classList.add('hidden'); // Example: hide sender pw section
+    }
+
+    // --- Toast Notification Function ---
+    function showToast(message, type = 'info', duration = 3000) {
+        if (!toastContainer) return;
+
+        const toast = document.createElement('div');
+        toast.className = `toast-notification ${type}`;
+        toast.textContent = message;
+        toast.setAttribute('role', 'alert');
+
+        toastContainer.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 10);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
     }
 
     // --- Global Functions (Accessible from HTML via onclick) ---
     window.switchTab = (tabName) => {
-        isSender = (tabName === 'send');
-        stopAllScanners();
-        sendTabBtn.classList.toggle('active', isSender);
-        receiveTabBtn.classList.toggle('active', !isSender);
-        sendSection.classList.toggle('active', isSender);
-        receiveSection.classList.toggle('active', !isSender);
-        resetState(true); // Full reset when switching tabs
+        if (activeTab === tabName) return; // No change
+
+        // Save current tab's state BEFORE switching
+        saveCurrentTabState();
+
+        activeTab = tabName;
+        isSenderRole = (tabName === 'send'); // Role is tied to the tab itself now
+
+        // If a connection process was active, it needs to be fully reset.
+        // Otherwise, try to restore state.
+        if (connectionInProgress) {
+            showToast("Switching tabs will reset the current connection process.", "warning");
+            closePeerConnection(); // Fully close and reset connection variables
+            connectionInProgress = false; // Reset flag
+            resetUiToInitial(tabName === 'send' ? sendTabState : receiveTabState, tabName); // Reset UI completely for the new tab
+        } else {
+            // No active connection, just switch UI and restore non-connection state
+            stopAllScanners(); // Stop scanners if any were active without connection
+        }
+
+        // Update tab button active states
+        sendTabBtn.classList.toggle('active', tabName === 'send');
+        receiveTabBtn.classList.toggle('active', tabName === 'receive');
+        sendTabBtn.setAttribute('aria-selected', tabName === 'send');
+        receiveTabBtn.setAttribute('aria-selected', tabName !== 'send');
+
+        // Update section visibility
+        sendSection.classList.toggle('active', tabName === 'send');
+        receiveSection.classList.toggle('active', tabName === 'receive');
+
+        // Restore the new tab's state (if not reset by connectionInProgress)
+        if (!connectionInProgress) {
+            restoreTabState(tabName);
+        }
+        // Ensure chat is correctly set for the new tab
+        enableChatForCurrentTab(false); // Disable chat initially, enable on connection
     };
 
+
+    function saveCurrentTabState() {
+        if (activeTab === 'send') {
+            // filesToSend and totalBytesToSend are already global and modified directly for sendTabState
+            sendTabState.passwordInputSenderValue = passwordInputSender.value;
+            sendTabState.offerSdpTextareaValue = offerSdpTextarea.value;
+            sendTabState.answerSdpTextareaValue = answerSdpTextarea.value;
+            sendTabState.isPasswordSectionSenderVisible = !passwordSectionSender.classList.contains('hidden');
+            sendTabState.isSelectedFilesSectionVisible = !selectedFilesSection.classList.contains('hidden');
+            sendTabState.isOfferStepVisible = !offerStep.classList.contains('hidden');
+            sendTabState.isAnswerStepVisible = !answerStep.classList.contains('hidden');
+            sendTabState.isGenerateBtnDisabled = generateBtn.disabled;
+            sendTabState.chatMessages = Array.from(chatMessagesSender.children).map(li => ({
+                text: li.querySelector('span').textContent,
+                isSent: li.classList.contains('sent')
+            }));
+
+        } else if (activeTab === 'receive') {
+            receiveTabState.offerSdpInputTextareaValue = offerSdpInputTextarea.value;
+            receiveTabState.answerSdpOutputTextareaValue = answerSdpOutputTextarea.value;
+            receiveTabState.passwordInputReceiverValue = passwordInputReceiver.value;
+            receiveTabState.isPasswordSectionReceiverVisible = !passwordSectionReceiver.classList.contains('hidden');
+            receiveTabState.isAnswerOutputStepVisible = !answerOutputStep.classList.contains('hidden');
+            receiveTabState.isReceiverWaitMessageVisible = !receiverWaitMessage.classList.contains('hidden');
+            receiveTabState.chatMessages = Array.from(chatMessagesReceiver.children).map(li => ({
+                text: li.querySelector('span').textContent,
+                isSent: li.classList.contains('sent')
+            }));
+        }
+    }
+
+    function restoreTabState(tabName) {
+        if (tabName === 'send') {
+            // filesToSend and totalBytesToSend are part of sendTabState
+            filesToSend = sendTabState.filesToSend; // Restore from state
+            totalBytesToSend = sendTabState.totalBytesToSend; // Restore from state
+            updateFileListUI(); // This uses the global filesToSend
+            updateFileSummary(); // This uses global totalBytesToSend
+
+            passwordInputSender.value = sendTabState.passwordInputSenderValue;
+            offerSdpTextarea.value = sendTabState.offerSdpTextareaValue;
+            answerSdpTextarea.value = sendTabState.answerSdpTextareaValue;
+
+            passwordSectionSender.classList.toggle('hidden', !sendTabState.isPasswordSectionSenderVisible);
+            selectedFilesSection.classList.toggle('hidden', !sendTabState.isSelectedFilesSectionVisible);
+            offerStep.classList.toggle('hidden', !sendTabState.isOfferStepVisible);
+            answerStep.classList.toggle('hidden', !sendTabState.isAnswerStepVisible);
+            generateBtn.disabled = sendTabState.isGenerateBtnDisabled;
+
+            // Restore QR codes if SDP exists
+            if (sendTabState.offerSdpTextareaValue) generateQRCode('offer-qr-code', sendTabState.offerSdpTextareaValue);
+            else offerQrCodeDiv.innerHTML = '';
+
+            // Restore chat
+            chatMessagesSender.innerHTML = '';
+            sendTabState.chatMessages.forEach(msg => displayChatMessageInternal(msg.text, msg.isSent, chatMessagesSender));
+            chatPanelSender.classList.toggle('hidden', sendTabState.chatMessages.length === 0 || !dataChannel);
+
+
+        } else if (tabName === 'receive') {
+            offerSdpInputTextarea.value = receiveTabState.offerSdpInputTextareaValue;
+            answerSdpOutputTextarea.value = receiveTabState.answerSdpOutputTextareaValue;
+            passwordInputReceiver.value = receiveTabState.passwordInputReceiverValue;
+
+            passwordSectionReceiver.classList.toggle('hidden', !receiveTabState.isPasswordSectionReceiverVisible);
+            answerOutputStep.classList.toggle('hidden', !receiveTabState.isAnswerOutputStepVisible);
+            offerInputStep.classList.toggle('hidden', receiveTabState.isAnswerOutputStepVisible); // If answer output is visible, offer input is not.
+            receiverWaitMessage.classList.toggle('hidden', !receiveTabState.isReceiverWaitMessageVisible);
+
+            // Restore QR codes if SDP exists
+            if (receiveTabState.answerSdpOutputTextareaValue) generateQRCode('answer-qr-code', receiveTabState.answerSdpOutputTextareaValue);
+            else answerQrCodeDiv.innerHTML = '';
+
+            // Restore chat
+            chatMessagesReceiver.innerHTML = '';
+            receiveTabState.chatMessages.forEach(msg => displayChatMessageInternal(msg.text, msg.isSent, chatMessagesReceiver));
+            chatPanelReceiver.classList.toggle('hidden', receiveTabState.chatMessages.length === 0 || !dataChannel);
+
+            // Important: Elements like received files list, progress bars, status messages are generally NOT restored
+            // as they are tied to an active/completed transfer session, which is reset on tab switch if connectionInProgress.
+            // If connection was NOT in progress, these should be in their default hidden/reset state anyway.
+            receiveStatusSection.classList.add('hidden');
+            receivedFilesSection.classList.add('hidden');
+            receivedFilesList.innerHTML = '';
+        }
+    }
+
+    function resetUiToInitial(tabStateObject, tabName) {
+        // This function is called when a connection was in progress and tab is switched,
+        // requiring a full UI reset for the tab being switched TO, using its pristine state.
+        // Or for the initial load.
+
+        // Reset global connection-specific states
+        currentFileIndex = 0; currentFileOffset = 0; totalBytesSent = 0;
+        receiveBuffer = []; receivedSize = 0; filesMetadata = null;
+        currentReceivingFileIndex = 0; currentFileReceivedSize = 0;
+        receivedFiles = []; revokeObjectUrls();
+        passwordHash = null; transferPaused = false; isPasswordRequiredBySender = false;
+
+        if (tabName === 'send') {
+            tabStateObject.filesToSend = []; // Clear files for this tab's state
+            tabStateObject.totalBytesToSend = 0;
+            tabStateObject.passwordInputSenderValue = '';
+            tabStateObject.offerSdpTextareaValue = '';
+            tabStateObject.answerSdpTextareaValue = '';
+            tabStateObject.isPasswordSectionSenderVisible = false;
+            tabStateObject.isSelectedFilesSectionVisible = false;
+            tabStateObject.isOfferStepVisible = false;
+            tabStateObject.isAnswerStepVisible = false;
+            tabStateObject.isGenerateBtnDisabled = true;
+            tabStateObject.chatMessages = [];
+
+            // Apply this pristine state to UI
+            filesToSend = []; totalBytesToSend = 0; updateFileListUI(); updateFileSummary();
+            passwordInputSender.value = '';
+            offerSdpTextarea.value = ''; offerQrCodeDiv.innerHTML = '';
+            answerSdpTextarea.value = '';
+            passwordSectionSender.classList.add('hidden');
+            selectedFilesSection.classList.add('hidden');
+            offerStep.classList.add('hidden');
+            answerStep.classList.add('hidden');
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<i class="fas fa-share-alt"></i> Generate Share Code';
+            connectBtn.innerHTML = '<i class="fas fa-link"></i> Connect'; connectBtn.disabled = false;
+            sendStatusSection.classList.add('hidden');
+            pauseResumeBtn.innerHTML = '<i class="fas fa-pause"></i> Pause'; pauseResumeBtn.disabled = true;
+            cancelTransferBtn.disabled = true;
+            chatMessagesSender.innerHTML = ''; chatPanelSender.classList.add('hidden');
+
+        } else if (tabName === 'receive') {
+            tabStateObject.offerSdpInputTextareaValue = '';
+            tabStateObject.answerSdpOutputTextareaValue = '';
+            tabStateObject.passwordInputReceiverValue = '';
+            tabStateObject.isPasswordSectionReceiverVisible = false;
+            tabStateObject.isAnswerOutputStepVisible = false;
+            tabStateObject.isReceiverWaitMessageVisible = true; // Default for receive tab
+            tabStateObject.chatMessages = [];
+
+            // Apply this pristine state to UI
+            offerSdpInputTextarea.value = '';
+            answerSdpOutputTextarea.value = ''; answerQrCodeDiv.innerHTML = '';
+            passwordInputReceiver.value = '';
+            passwordSectionReceiver.classList.add('hidden');
+            answerOutputStep.classList.add('hidden');
+            offerInputStep.classList.remove('hidden'); // Default for receive tab
+            receiverWaitMessage.classList.remove('hidden');
+            generateAnswerBtn.innerHTML = '<i class="fas fa-reply"></i> Generate Response Code'; generateAnswerBtn.disabled = false;
+            receiveStatusSection.classList.add('hidden');
+            receivedFilesSection.classList.add('hidden'); receivedFilesList.innerHTML = '';
+            downloadAllBtn.disabled = true; downloadZipBtn.disabled = true;
+            chatMessagesReceiver.innerHTML = ''; chatPanelReceiver.classList.add('hidden');
+        }
+    }
+
+
+
     window.copyToClipboard = (elementId) => {
+        // ... (same as before, uses showToast) ...
         const textareaElement = document.getElementById(elementId);
-        if (!textareaElement) return;
+        if (!textareaElement || !textareaElement.value) {
+            showToast("Nothing to copy.", "warning");
+            return;
+        }
         textareaElement.select();
-        textareaElement.setSelectionRange(0, 99999); // For mobile devices
+        textareaElement.setSelectionRange(0, 99999);
 
         navigator.clipboard?.writeText(textareaElement.value)
-            .then(() => showCopyFeedback(textareaElement))
+            .then(() => {
+                showToast('Copied to clipboard!', 'success');
+                const textCodeSection = textareaElement.closest('.text-code-section');
+                const copyButton = textCodeSection?.querySelector('.copy-btn');
+                if (copyButton) {
+                    const tooltip = copyButton.querySelector('.tooltip');
+                    if (tooltip) tooltip.textContent = 'Copied!';
+                    copyButton.classList.add('copied');
+                    setTimeout(() => {
+                        if (tooltip) tooltip.textContent = 'Copy';
+                        copyButton.classList.remove('copied');
+                    }, 1500);
+                }
+            })
             .catch(err => {
                 console.error('Clipboard API copy failed:', err);
-                fallbackCopy(textareaElement); // Try legacy method
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) showToast('Copied (fallback)!', 'success');
+                    else throw new Error('Fallback failed');
+                } catch (fallbackErr) {
+                    showToast('Copy failed. Please copy manually.', 'error');
+                    console.error('Fallback copy failed:', fallbackErr);
+                }
             });
     };
 
-    // Make removeFile accessible globally for onclick
     window.removeFile = (index) => {
-        if (index < 0 || index >= filesToSend.length) return;
+        if (activeTab !== 'send') return; // Should only be callable from send tab
+        if (index < 0 || index >= sendTabState.filesToSend.length) return;
 
-        const itemToRemove = filesToSend[index];
-        totalBytesToSend -= itemToRemove.file.size;
-        filesToSend.splice(index, 1);
+        const itemToRemove = sendTabState.filesToSend[index];
+        sendTabState.totalBytesToSend -= itemToRemove.file.size;
+        sendTabState.filesToSend.splice(index, 1);
 
-        // Clean up potential preview URL
+        // Update global alias for UI functions
+        filesToSend = sendTabState.filesToSend;
+        totalBytesToSend = sendTabState.totalBytesToSend;
+
         const listItem = selectedFilesList.querySelector(`li[data-index='${index}']`);
         if (listItem) {
             const previewElement = listItem.querySelector('.file-preview img, .file-preview video');
             if (previewElement && previewElement.src && previewElement.src.startsWith('blob:')) {
                 URL.revokeObjectURL(previewElement.src);
                 const urlIndex = objectUrls.indexOf(previewElement.src);
-                if (urlIndex > -1) {
-                    objectUrls.splice(urlIndex, 1);
-                }
+                if (urlIndex > -1) objectUrls.splice(urlIndex, 1);
             }
         }
-
-        updateFileListUI(); // Re-render the list with updated indices
+        updateFileListUI();
         updateFileSummary();
-        generateBtn.disabled = filesToSend.length === 0;
-        passwordSectionSender.classList.toggle('hidden', filesToSend.length === 0);
+        sendTabState.isGenerateBtnDisabled = sendTabState.filesToSend.length === 0;
+        generateBtn.disabled = sendTabState.isGenerateBtnDisabled;
+        sendTabState.isPasswordSectionSenderVisible = sendTabState.filesToSend.length > 0;
+        passwordSectionSender.classList.toggle('hidden', !sendTabState.isPasswordSectionSenderVisible);
+        sendTabState.isSelectedFilesSectionVisible = sendTabState.filesToSend.length > 0;
+        selectedFilesSection.classList.toggle('hidden', !sendTabState.isSelectedFilesSectionVisible);
+
+        showToast(`Removed ${itemToRemove.file.name}`, 'info', 1500);
     };
 
-     // Make togglePasswordVisibility accessible globally for onclick
+
     window.togglePasswordVisibility = (inputId, buttonElement) => {
+        // ... (same as before) ...
         const input = document.getElementById(inputId);
         const icon = buttonElement.querySelector('i');
         if (!input || !icon) return;
-
         if (input.type === "password") {
             input.type = "text";
             icon.classList.replace("fa-eye", "fa-eye-slash");
@@ -189,117 +456,96 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Make preview functions accessible globally for onclick/ondblclick
     window.openPreviewModal = (element) => {
-         const src = element.src;
-         if (!src || !previewModal || !modalImagePreview || !modalVideoPreview) return;
+        // ... (same as before) ...
+        const src = element.src;
+        if (!src || !previewModal || !modalImagePreview || !modalVideoPreview) return;
 
-         if (element.tagName === 'IMG') {
-             modalImagePreview.src = src;
-             modalImagePreview.style.display = 'block';
-             modalVideoPreview.style.display = 'none';
-             modalVideoPreview.pause(); // Ensure video is paused
-             modalVideoPreview.src = ''; // Clear video src
-         } else if (element.tagName === 'VIDEO') {
-             modalVideoPreview.src = src;
-             modalVideoPreview.style.display = 'block';
-             modalImagePreview.style.display = 'none';
-             modalImagePreview.src = ''; // Clear image src
-             modalVideoPreview.play().catch(e => console.warn("Autoplay prevented:", e));
-         } else {
-             return; // Only handle img/video
-         }
-         previewModal.style.display = 'flex';
+        if (element.tagName === 'IMG') {
+            modalImagePreview.src = src;
+            modalImagePreview.style.display = 'block';
+            modalVideoPreview.style.display = 'none';
+            modalVideoPreview.pause();
+            modalVideoPreview.src = '';
+        } else if (element.tagName === 'VIDEO') {
+            modalVideoPreview.src = src;
+            modalVideoPreview.style.display = 'block';
+            modalImagePreview.style.display = 'none';
+            modalImagePreview.src = '';
+            modalVideoPreview.play().catch(e => console.warn("Autoplay prevented:", e));
+        } else {
+            return;
+        }
+        previewModal.style.display = 'flex';
+        previewModal.classList.remove('fade-out');
+        document.body.style.overflow = 'hidden';
     };
 
     window.closePreviewModal = () => {
-         if (!previewModal || !modalImagePreview || !modalVideoPreview) return;
-         previewModal.style.display = 'none';
-         modalImagePreview.src = '';
-         modalVideoPreview.src = '';
-         modalVideoPreview.pause();
-         modalImagePreview.style.display = 'none';
-         modalVideoPreview.style.display = 'none';
+        // ... (same as before) ...
+        if (!previewModal || !modalImagePreview || !modalVideoPreview) return;
+        previewModal.classList.add('fade-out');
+        setTimeout(() => {
+            previewModal.style.display = 'none';
+            modalImagePreview.src = '';
+            modalVideoPreview.src = '';
+            modalVideoPreview.pause();
+            modalImagePreview.style.display = 'none';
+            modalVideoPreview.style.display = 'none';
+        }, 280);
+        document.body.style.overflow = '';
     };
 
     window.closeModalOnClick = (event) => {
+        // ... (same as before) ...
         if (event.target === previewModal) {
             closePreviewModal();
         }
     };
 
-
     // --- Helper Functions ---
-    function fallbackCopy(textareaElement) {
-        try {
-            const successful = document.execCommand('copy');
-            if (successful) {
-                showCopyFeedback(textareaElement);
-            } else {
-                console.error('Fallback copy command failed');
-                alert("Copy failed. Please copy manually.");
-            }
-        } catch (err) {
-            console.error('Fallback copy exception:', err);
-            alert("Copy failed. Please copy manually.");
-        }
-    }
-
-    function showCopyFeedback(textareaElement) {
-        const textCodeSection = textareaElement.closest('.text-code-section');
-        const copyButton = textCodeSection?.querySelector('.copy-btn');
-        if (copyButton) {
-            const tooltip = copyButton.querySelector('.tooltip');
-            if (tooltip) tooltip.textContent = 'Copied!';
-            copyButton.classList.add('copied'); // Optional: Add a class for visual feedback
-            setTimeout(() => {
-                if (tooltip) tooltip.textContent = 'Copy';
-                copyButton.classList.remove('copied');
-            }, 1500);
-        }
-    }
-
     function formatBytes(bytes, decimals = 2) {
+        // ... (same as before) ...
         if (!+bytes || bytes === 0) return '0 Bytes';
         const k = 1024;
         const dm = decimals < 0 ? 0 : decimals;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
     }
 
     function getFileIconClass(fileType) {
-        if (!fileType) return 'fa-file'; // Default icon
-
+        // ... (same as before) ...
+        if (!fileType) return 'fa-file';
         const type = fileType.toLowerCase();
-
         if (type.startsWith('image/')) return 'fa-file-image';
         if (type.startsWith('video/')) return 'fa-file-video';
         if (type.startsWith('audio/')) return 'fa-file-audio';
         if (type.includes('pdf')) return 'fa-file-pdf';
-        if (type.includes('zip') || type.includes('rar') || type.includes('compress')) return 'fa-file-zipper';
-        if (type.includes('text')) return 'fa-file-lines'; // More generic than -alt
+        if (type.includes('zip') || type.includes('rar')) return 'fa-file-zipper';
+        if (type.includes('text')) return 'fa-file-lines';
         if (type.includes('excel') || type.includes('spreadsheet')) return 'fa-file-excel';
         if (type.includes('word') || type.includes('document')) return 'fa-file-word';
-        if (type.includes('powerpoint') || type.includes('presentation')) return 'fa-file-powerpoint';
+        if (type.includes('powerpoint')) return 'fa-file-powerpoint';
         if (type.includes('csv')) return 'fa-file-csv';
-        if (type.includes('code') || type.includes('script') || type.includes('html') || type.includes('css') || type.includes('javascript')) return 'fa-file-code';
-
-        return 'fa-file'; // Fallback for unknown types
+        if (type.includes('code') || ['html', 'css', 'js', 'py', 'java', 'c', 'cpp', 'cs', 'php', 'rb', 'go', 'rs', 'kt', 'swift'].some(ext => type.includes(ext))) return 'fa-file-code';
+        return 'fa-file';
     }
 
-    function updateStatusMessage(element, message, type = 'info') {
+    function updateStatusDisplay(element, message, type = 'info') {
+        // ... (same as before) ...
         if (!element) return;
         element.textContent = message;
-        // Ensure only valid type classes are applied
-        element.className = 'status-message ' + ['info', 'success', 'error', 'warning'].find(t => t === type) || 'info';
+        element.className = 'status-message ' + (['info', 'success', 'error', 'warning'].find(t => t === type) || 'info');
     }
 
     function closePeerConnection() {
         stopAllScanners();
         stopSpeedAndETRCalc();
+        // Reset connection-specific global state
         passwordHash = null;
-        isPasswordRequiredBySender = false; // Reset flag on close
+        isPasswordRequiredBySender = false;
+        connectionInProgress = false; // Crucial for tab switching logic
 
         if (dataChannel) {
             try { dataChannel.close(); } catch (e) { console.warn("Error closing data channel:", e); }
@@ -309,168 +555,81 @@ document.addEventListener('DOMContentLoaded', () => {
             try { peerConnection.close(); } catch (e) { console.warn("Error closing peer connection:", e); }
             peerConnection = null;
         }
-        console.log("Peer connection closed and resources released.");
-        // Optionally disable chat after closing connection
-        enableChat(false);
-    }
-
-    function resetState(fullReset = true) {
-        console.log(`Resetting state (Full: ${fullReset})`);
-        closePeerConnection(); // Always close existing connections
-
-        // Reset transfer state variables
-        currentFileIndex = 0;
-        currentFileOffset = 0;
-        totalBytesSent = 0;
-        receiveBuffer = [];
-        receivedSize = 0;
-        filesMetadata = null;
-        currentReceivingFileIndex = 0;
-        currentFileReceivedSize = 0;
-        receivedFiles = [];
-        revokeObjectUrls(); // Clean up blob URLs
-        transferPaused = false;
-        passwordHash = null;
-        isPasswordRequiredBySender = false;
-
-        // Reset UI elements - Sender tab
-        offerStep.classList.add('hidden');
-        offerQrCodeDiv.innerHTML = ''; // Clear QR code
-        offerSdpTextarea.value = '';
-        answerStep.classList.add('hidden');
-        answerSdpTextarea.value = '';
-        answerScannerArea.classList.add('hidden');
-        answerScanStatus.textContent = '';
-        sendStatusSection.classList.add('hidden');
-        updateSendProgress(0, ''); // Reset progress bar and labels
-        generateBtn.innerHTML = '<i class="fas fa-share-alt"></i> Generate Share Code';
-        generateBtn.disabled = filesToSend.length === 0 && isSender; // Disable if no files selected (only if on Send tab)
-        connectBtn.innerHTML = '<i class="fas fa-link"></i> Connect';
-        connectBtn.disabled = false;
-        pauseResumeBtn.innerHTML = '<i class="fas fa-pause"></i> Pause';
-        pauseResumeBtn.disabled = true;
-        cancelTransferBtn.disabled = true;
-        speedIndicator.textContent = '-- MB/s';
-        etrIndicator.textContent = 'ETR: --';
-        chatMessagesSender.innerHTML = ''; // Clear chat
-        chatPanelSender.classList.add('hidden');
-
-        // Reset UI elements - Receiver tab
-        offerInputStep.classList.remove('hidden'); // Show initial step
-        offerSdpInputTextarea.value = '';
-        offerScannerArea.classList.add('hidden');
-        offerScanStatus.textContent = '';
-        generateAnswerBtn.innerHTML = '<i class="fas fa-reply"></i> Generate Response Code';
-        generateAnswerBtn.disabled = false;
-        passwordSectionReceiver.classList.add('hidden');
-        passwordInputReceiver.value = '';
-        answerOutputStep.classList.add('hidden');
-        answerQrCodeDiv.innerHTML = ''; // Clear QR code
-        answerSdpOutputTextarea.value = '';
-        receiverWaitMessage.classList.remove('hidden'); // Show wait message initially
-        receiveStatusSection.classList.add('hidden');
-        updateReceiveProgress(0, 'Waiting for connection...'); // Reset progress bar and labels
-        receivedFilesSection.classList.add('hidden');
-        receivedFilesList.innerHTML = ''; // Clear received files list
-        downloadAllBtn.disabled = true;
-        downloadZipBtn.disabled = true;
-        receiveSpeedIndicator.textContent = '-- MB/s';
-        chatMessagesReceiver.innerHTML = ''; // Clear chat
-        chatPanelReceiver.classList.add('hidden');
-
-        // Full reset specific actions
-        if (fullReset) {
-            filesToSend = [];
-            totalBytesToSend = 0;
-            updateFileListUI(); // Clear file list UI
-            updateFileSummary(); // Reset summary
-            selectedFilesSection.classList.add('hidden'); // Hide list section
-            fileInput.value = ''; // Clear file input
-            folderInput.value = ''; // Clear folder input
-            passwordInputSender.value = ''; // Clear sender password input
-            passwordSectionSender.classList.add('hidden'); // Hide sender password section
-             if(isSender) generateBtn.disabled = true; // Ensure generate is disabled if no files
-        } else if (isSender) {
-            // Partial reset on sender tab (e.g., after failed connection)
-             passwordSectionSender.classList.toggle('hidden', filesToSend.length === 0);
-             generateBtn.disabled = filesToSend.length === 0;
-        }
-
-        // Ensure chat is disabled initially
-        enableChat(false);
+        console.log("Peer connection closed.");
+        enableChatForCurrentTab(false); // Disable chat for the current tab
     }
 
     async function calculateHash(blob) {
-        if (!cryptoAvailable) return null; // Crypto not supported
+        // ... (same as before, uses showToast) ...
+        if (!cryptoAvailable) return null;
         try {
             const buffer = await blob.arrayBuffer();
             const hashBuffer = await crypto.subtle.digest(HASH_ALGORITHM, buffer);
-            // Convert buffer to byte array
             const hashArray = Array.from(new Uint8Array(hashBuffer));
-            // Convert bytes to hex string
-            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            return hashHex;
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         } catch (error) {
             console.error('Hashing error:', error);
-            return null; // Return null on error
+            showToast('Error calculating file hash.', 'error');
+            return null;
         }
     }
 
     async function hashPassword(password) {
-        if (!cryptoAvailable || !password) return null; // Need crypto and a password
+        // ... (same as before, uses showToast) ...
+        if (!cryptoAvailable || !password) return null;
         try {
             const encoder = new TextEncoder();
             const data = encoder.encode(password);
             const hashBuffer = await crypto.subtle.digest(HASH_ALGORITHM, data);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            return hashHex;
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         } catch (error) {
             console.error("Password hashing error:", error);
+            showToast('Error securing password.', 'error');
             return null;
         }
     }
 
-
     // --- UI Updates (Progress, Speed, ETR) ---
-    function updateSendProgress(sentBytes = totalBytesSent, statusMsg = null, statusType = 'info') {
+    function updateSendProgressUI(sentBytes = totalBytesSent, statusMsg = null, statusType = 'info') {
+        // ... (same as before, uses showToast and addHistoryEntry) ...
         if (!sendStatusSection || !sendProgressBar || !sendProgressText || !sendProgressLabel) return;
+        totalBytesSent = sentBytes;
+        const currentFilesForSend = sendTabState.filesToSend; // Use state data
+        const currentTotalBytesToSend = sendTabState.totalBytesToSend;
 
-        totalBytesSent = sentBytes; // Update global state
-
-        const overallPercent = totalBytesToSend > 0 ? Math.min(100, (totalBytesSent / totalBytesToSend) * 100) : 0;
-
+        const overallPercent = currentTotalBytesToSend > 0 ? Math.min(100, (totalBytesSent / currentTotalBytesToSend) * 100) : 0;
         sendProgressBar.style.width = overallPercent + '%';
-        sendProgressText.textContent = `${formatBytes(totalBytesSent)} / ${formatBytes(totalBytesToSend)} (${Math.round(overallPercent)}%)`;
+        sendProgressBar.setAttribute('aria-valuenow', overallPercent);
+        sendProgressText.textContent = `${formatBytes(totalBytesSent)} / ${formatBytes(currentTotalBytesToSend)} (${Math.round(overallPercent)}%)`;
 
         let fileLabel = "Overall Progress";
-        if (currentFileIndex < filesToSend.length) {
-            const currentItem = filesToSend[currentFileIndex];
+        if (currentFileIndex < currentFilesForSend.length) {
+            const currentItem = currentFilesForSend[currentFileIndex];
             const displayPath = currentItem.path !== currentItem.file.name ? ` (${currentItem.path})` : '';
-            fileLabel = `Sending: ${currentItem.file.name}${displayPath} (${currentFileIndex + 1}/${filesToSend.length})`;
-        } else if (totalBytesSent >= totalBytesToSend && filesToSend.length > 0) {
-            fileLabel = `Sent ${filesToSend.length} item(s)`;
-            updateStatusMessage(sendStatusMessage, 'Transfer complete!', 'success'); // Explicit completion message
-            addHistoryEntry(filesToSend.map(f => f.file.name).join(', '), totalBytesToSend, true);
-            stopSpeedAndETRCalc(); // Stop calc on completion
+            fileLabel = `Sending: ${currentItem.file.name}${displayPath} (${currentFileIndex + 1}/${currentFilesForSend.length})`;
+        } else if (totalBytesSent >= currentTotalBytesToSend && currentFilesForSend.length > 0) {
+            fileLabel = `Sent ${currentFilesForSend.length} item(s)`;
+            updateStatusDisplay(sendStatusMessage, 'Transfer complete!', 'success');
+            showToast('File transfer complete!', 'success');
+            addHistoryEntry(currentFilesForSend.map(f => f.file.name).join(', '), currentTotalBytesToSend, true, false, 'file');
+            stopSpeedAndETRCalc();
             pauseResumeBtn.disabled = true;
-            cancelTransferBtn.disabled = true; // Disable controls on completion
+            cancelTransferBtn.disabled = true;
+            connectionInProgress = false; // Allow normal tab switching again
         }
         sendProgressLabel.textContent = fileLabel;
-
-        if (statusMsg !== null) {
-            updateStatusMessage(sendStatusMessage, statusMsg, statusType);
-        }
-        sendStatusSection.classList.remove('hidden'); // Ensure section is visible
+        if (statusMsg !== null) updateStatusDisplay(sendStatusMessage, statusMsg, statusType);
+        sendStatusSection.classList.remove('hidden');
     }
 
-    function updateReceiveProgress(receivedBytes = receivedSize, statusMsg = null, statusType = 'info') {
+    function updateReceiveProgressUI(receivedBytes = receivedSize, statusMsg = null, statusType = 'info') {
+        // ... (same as before) ...
         if (!receiveStatusSection || !receiveProgressBar || !receiveProgressText || !receiveProgressLabel) return;
-
         const totalSize = filesMetadata ? filesMetadata.reduce((sum, meta) => sum + meta.size, 0) : 0;
         const overallPercent = totalSize > 0 ? Math.min(100, (receivedBytes / totalSize) * 100) : 0;
-
         receiveProgressBar.style.width = overallPercent + '%';
+        receiveProgressBar.setAttribute('aria-valuenow', overallPercent);
         receiveProgressText.textContent = `${formatBytes(receivedBytes)} / ${formatBytes(totalSize)} (${Math.round(overallPercent)}%)`;
 
         let fileLabel = "Overall Progress";
@@ -479,43 +638,37 @@ document.addEventListener('DOMContentLoaded', () => {
             const displayPath = currentFileMeta.path !== currentFileMeta.name ? ` (${currentFileMeta.path})` : '';
             fileLabel = `Receiving: ${currentFileMeta.name}${displayPath} (${currentReceivingFileIndex + 1}/${filesMetadata.length})`;
         } else if (receivedBytes >= totalSize && filesMetadata && filesMetadata.length > 0) {
-            // Completion handled within handleDataChannelMessage when last file is processed
             fileLabel = `Received ${filesMetadata.length} item(s)`;
+            connectionInProgress = false; // Allow normal tab switching
         }
         receiveProgressLabel.textContent = fileLabel;
-
-        if (statusMsg !== null) {
-            updateStatusMessage(receiveStatusMessage, statusMsg, statusType);
-        }
-        receiveStatusSection.classList.remove('hidden'); // Ensure section is visible
+        if (statusMsg !== null) updateStatusDisplay(receiveStatusMessage, statusMsg, statusType);
+        receiveStatusSection.classList.remove('hidden');
     }
 
     function startSpeedAndETRCalc() {
-        stopSpeedAndETRCalc(); // Clear any existing interval
+        // ... (same as before, but uses isSenderRole and sendTabState.totalBytesToSend) ...
+        stopSpeedAndETRCalc();
         lastMeasurementTime = Date.now();
         lastMeasurementSentBytes = totalBytesSent;
         lastMeasurementReceivedBytes = receivedSize;
-        transferStartTime = Date.now(); // Reset start time
-
+        transferStartTime = Date.now();
         console.log("Starting speed calculation interval.");
 
         speedIntervalId = setInterval(() => {
             const now = Date.now();
             const timeDiffSeconds = (now - lastMeasurementTime) / 1000;
+            if (timeDiffSeconds <= 0.1) return;
 
-            if (timeDiffSeconds <= 0.1) return; // Avoid division by zero or tiny intervals
+            let currentSpeed = 0, bytesRemaining = 0, currentTotalBytes = 0;
 
-            let currentSpeed = 0; // Bytes per second
-            let bytesRemaining = 0;
-            let currentTotalBytes = 0;
-
-            if (isSender) {
+            if (isSenderRole) { // Sender on Send Tab
                 const bytesSentDiff = totalBytesSent - lastMeasurementSentBytes;
                 currentSpeed = bytesSentDiff / timeDiffSeconds;
                 lastMeasurementSentBytes = totalBytesSent;
-                currentTotalBytes = totalBytesToSend;
+                currentTotalBytes = sendTabState.totalBytesToSend;
                 bytesRemaining = currentTotalBytes - totalBytesSent;
-            } else { // Receiver
+            } else { // Receiver on Receive Tab
                 const bytesReceivedDiff = receivedSize - lastMeasurementReceivedBytes;
                 currentSpeed = bytesReceivedDiff / timeDiffSeconds;
                 lastMeasurementReceivedBytes = receivedSize;
@@ -524,261 +677,215 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             lastMeasurementTime = now;
-
             const speedMBps = currentSpeed / 1024 / 1024;
             const speedDisplay = speedMBps >= 0 ? `${speedMBps.toFixed(2)} MB/s` : '-- MB/s';
-
             let etrDisplay = 'ETR: --';
-            // Calculate ETR only if speed is meaningful and bytes remain
-            if (currentSpeed > 512 && bytesRemaining > 0) { // Threshold for calculation (e.g., > 0.5 KB/s)
+            if (currentSpeed > 512 && bytesRemaining > 0) {
                 const etrSeconds = bytesRemaining / currentSpeed;
                 if (isFinite(etrSeconds)) {
-                    if (etrSeconds < 60) {
-                        etrDisplay = `ETR: ~${Math.round(etrSeconds)}s`;
-                    } else if (etrSeconds < 3600) {
-                        etrDisplay = `ETR: ~${Math.round(etrSeconds / 60)}m`;
-                    } else {
-                        etrDisplay = `ETR: ~${Math.round(etrSeconds / 3600)}h`;
-                    }
+                    if (etrSeconds < 60) etrDisplay = `ETR: ~${Math.round(etrSeconds)}s`;
+                    else if (etrSeconds < 3600) etrDisplay = `ETR: ~${Math.round(etrSeconds / 60)}m`;
+                    else etrDisplay = `ETR: ~${Math.round(etrSeconds / 3600)}h`;
                 }
             } else if (bytesRemaining <= 0 && currentTotalBytes > 0) {
-                etrDisplay = 'ETR: Done'; // Explicitly show done
+                etrDisplay = 'ETR: Done';
             }
 
-            // Update UI
-            if (isSender) {
-                if(speedIndicator) speedIndicator.textContent = speedDisplay;
-                if(etrIndicator) etrIndicator.textContent = etrDisplay;
+            if (isSenderRole) {
+                if (speedIndicator) speedIndicator.textContent = speedDisplay;
+                if (etrIndicator) etrIndicator.textContent = etrDisplay;
             } else {
-                if(receiveSpeedIndicator) receiveSpeedIndicator.textContent = speedDisplay;
-                // ETR is typically only shown for sending, but could be added here if desired
+                if (receiveSpeedIndicator) receiveSpeedIndicator.textContent = speedDisplay;
             }
-
         }, SPEED_INTERVAL);
     }
 
     function stopSpeedAndETRCalc() {
+        // ... (same as before, uses isSenderRole and sendTabState.totalBytesToSend) ...
         if (speedIntervalId) {
             clearInterval(speedIntervalId);
             speedIntervalId = null;
             console.log("Stopped speed calculation interval.");
         }
-        // Reset indicators if transfer is not complete
-        if (isSender) {
-             if (totalBytesSent < totalBytesToSend) {
-                 if(speedIndicator) speedIndicator.textContent = '-- MB/s';
-                 if(etrIndicator) etrIndicator.textContent = 'ETR: --';
-             }
+        if (isSenderRole) {
+            if (totalBytesSent < sendTabState.totalBytesToSend) {
+                if (speedIndicator) speedIndicator.textContent = '-- MB/s';
+                if (etrIndicator) etrIndicator.textContent = 'ETR: --';
+            }
         } else {
-             const totalSize = filesMetadata ? filesMetadata.reduce((sum, meta) => sum + meta.size, 0) : 0;
-             if (receivedSize < totalSize) {
-                 if(receiveSpeedIndicator) receiveSpeedIndicator.textContent = '-- MB/s';
-             }
+            const totalSize = filesMetadata ? filesMetadata.reduce((s, m) => s + m.size, 0) : 0;
+            if (receivedSize < totalSize) {
+                if (receiveSpeedIndicator) receiveSpeedIndicator.textContent = '-- MB/s';
+            }
         }
     }
 
     // --- QR Code Gen/Scan ---
     function generateQRCode(elementId, text) {
+        // ... (same as before, uses showToast) ...
         const targetElement = document.getElementById(elementId);
         if (!targetElement) {
             console.error(`QR Code target element not found: ${elementId}`);
+            showToast(`Error: QR display area not found.`, 'error');
             return;
         }
-        targetElement.innerHTML = ''; // Clear previous QR code
-
-        // Basic check for text length (adjust limit as needed)
+        targetElement.innerHTML = '';
         if (text.length > 2000) {
             console.warn("QR Code data is very long, might be hard to scan.");
+            showToast("QR code data is large, may be difficult to scan.", "warning");
         }
-
         try {
-            // Use the qrcode-generator library (assuming it's globally available)
-            const typeNumber = 0; // Auto-detect type number (size)
-            const errorCorrectionLevel = 'M'; // Medium error correction
+            const typeNumber = 0;
+            const errorCorrectionLevel = 'M';
             const qr = qrcode(typeNumber, errorCorrectionLevel);
             qr.addData(text);
             qr.make();
-            // Use createSvgTag for scalable vector output
             targetElement.innerHTML = qr.createSvgTag({ scalable: true });
         } catch (e) {
             console.error("QR Code generation error:", e);
             targetElement.innerHTML = '<p style="color: var(--error-color); font-size: 0.9em;">Error generating QR code.</p>';
+            showToast('Failed to generate QR code.', 'error');
         }
     }
 
-    function startScanner(readerElementId, statusElementId, containerElementId, scannerVarName, successCallback) {
-        stopAllScanners(); // Stop any other active scanner
-
+    function startScanner(readerElementId, statusElementId, containerElementId, scannerVarNamePrefix, successCallback) {
+        // ... (scannerVarNamePrefix will be 'file' or 'text') ...
+        // ... (uses showToast) ...
+        stopAllScanners();
         const scannerContainer = document.getElementById(containerElementId);
         const statusElement = document.getElementById(statusElementId);
         if (!scannerContainer || !statusElement || !Html5Qrcode) {
             console.error("Scanner elements or Html5Qrcode library not found.");
             if (statusElement) statusElement.textContent = "Scanner setup error.";
+            showToast("QR Scanner setup error.", "error");
             return;
         }
-
         scannerContainer.classList.remove('hidden');
         statusElement.textContent = 'Initializing scanner...';
-        statusElement.className = ''; // Reset status class
+        statusElement.className = '';
+
+        // Determine if it's offer or answer scanner based on current context
+        const scannerInstanceVar = (readerElementId.includes('offer')) ? 'offerQrScanner' : 'answerQrScanner';
+
 
         try {
-            // Create a new scanner instance targeting the specific element
-            const html5QrCode = new Html5Qrcode(readerElementId);
+            const html5QrCode = new Html5Qrcode(readerElementId); // readerElementId is the div like 'offer-scanner-box'
+            if (scannerInstanceVar === 'offerQrScanner') offerQrScanner = html5QrCode;
+            else if (scannerInstanceVar === 'answerQrScanner') answerQrScanner = html5QrCode;
 
-            // Store the instance reference
-            if (scannerVarName === 'offer') offerQrScanner = html5QrCode;
-            else if (scannerVarName === 'answer') answerQrScanner = html5QrCode;
 
-            // Start scanning
             html5QrCode.start(
-                { facingMode: "environment" }, // Prefer rear camera
-                QR_SCANNER_CONFIG,
+                { facingMode: "environment" }, QR_SCANNER_CONFIG,
                 (decodedText, decodedResult) => {
-                    // Success callback
-                    console.log(`QR Code Scanned (${scannerVarName}): ${decodedText}`);
+                    console.log(`QR Code Scanned (${scannerVarNamePrefix}-${scannerInstanceVar}): ${decodedText}`);
                     statusElement.textContent = 'Scan successful!';
-                    statusElement.className = 'success'; // Add success class
-                    stopScanner(scannerVarName); // Stop this specific scanner
-                    successCallback(decodedText); // Pass the result back
+                    statusElement.className = 'success';
+                    showToast('QR Code scanned successfully!', 'success', 1500);
+                    stopScanner(scannerInstanceVar); // Pass the specific instance variable name ('offerQrScanner' or 'answerQrScanner')
+                    successCallback(decodedText);
                 },
-                (errorMessage) => {
-                    // Optional: handle scan errors or non-detections (called frequently)
-                    // console.log(`QR Scan message: ${errorMessage}`);
-                    // statusElement.textContent = 'Scanning... No QR code found.'; // Can be noisy
-                }
+                (errorMessage) => { /* Optional: console.log(`QR Scan message: ${errorMessage}`); */ }
             )
-            .then(() => {
-                 statusElement.textContent = 'Scanning for QR code...'; // Update status after start promise resolves
-            })
+            .then(() => { statusElement.textContent = 'Scanning for QR code...'; })
             .catch((err) => {
-                console.error(`Error starting scanner (${scannerVarName}):`, err);
-                statusElement.textContent = `Scanner Error: ${err}. Requires camera access & HTTPS.`;
-                statusElement.className = 'error'; // Add error class
-                scannerContainer.classList.add('hidden'); // Hide on error
-                // Clear the instance reference on error
-                if (scannerVarName === 'offer') offerQrScanner = null;
-                else if (scannerVarName === 'answer') answerQrScanner = null;
+                console.error(`Error starting scanner (${scannerVarNamePrefix}-${scannerInstanceVar}):`, err);
+                statusElement.textContent = `Scanner Error. Requires camera & HTTPS.`;
+                statusElement.className = 'error';
+                showToast(`Scanner Error: ${err.message || 'Unknown error'}. Ensure camera access.`, 'error');
+                scannerContainer.classList.add('hidden');
+                if (scannerInstanceVar === 'offerQrScanner') offerQrScanner = null;
+                else if (scannerInstanceVar === 'answerQrScanner') answerQrScanner = null;
             });
-
         } catch (e) {
             console.error("Html5Qrcode library error:", e);
-            statusElement.textContent = 'Scanner library failed to load.';
+            statusElement.textContent = 'Scanner library failed.';
             statusElement.className = 'error';
+            showToast('QR Scanner library failed to load.', 'error');
             scannerContainer.classList.add('hidden');
         }
     }
 
-    function stopScanner(scannerVarName) {
+
+    function stopScanner(scannerInstanceVarName) { // e.g., 'offerQrScanner' or 'answerQrScanner'
         let scannerInstance = null;
         let containerElementId = '';
 
-        if (scannerVarName === 'offer') {
+        if (scannerInstanceVarName === 'offerQrScanner') {
             scannerInstance = offerQrScanner;
-            containerElementId = 'offer-scanner-area';
-            offerQrScanner = null; // Clear reference
-        } else if (scannerVarName === 'answer') {
+            containerElementId = offerScannerArea.id; // Use the element directly
+        } else if (scannerInstanceVarName === 'answerQrScanner') {
             scannerInstance = answerQrScanner;
-            containerElementId = 'answer-scanner-area';
-            answerQrScanner = null; // Clear reference
+            containerElementId = answerScannerArea.id;
         } else {
-            return; // Unknown scanner name
+            return;
         }
 
-        const scannerContainer = document.getElementById(containerElementId);
+        const scannerContainerElem = document.getElementById(containerElementId);
 
         if (scannerInstance && typeof scannerInstance.getState === 'function') {
             try {
-                // Check if the scanner is actively scanning before stopping
                 const state = scannerInstance.getState();
-                 // Check for states where stopping is applicable
                 if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
                     scannerInstance.stop()
-                        .then(() => {
-                            console.log(`${scannerVarName} scanner stopped successfully.`);
-                        })
-                        .catch(err => {
-                            console.error(`Error stopping ${scannerVarName} scanner:`, err);
-                        })
+                        .then(() => console.log(`${scannerInstanceVarName} stopped.`))
+                        .catch(err => console.error(`Error stopping ${scannerInstanceVarName}:`, err))
                         .finally(() => {
-                            // Always hide the container after attempting to stop
-                            if (scannerContainer) scannerContainer.classList.add('hidden');
+                            if (scannerContainerElem) scannerContainerElem.classList.add('hidden');
                         });
                 } else {
-                     // If not scanning, just hide the container
-                     if (scannerContainer) scannerContainer.classList.add('hidden');
+                    if (scannerContainerElem) scannerContainerElem.classList.add('hidden');
                 }
             } catch (e) {
                 console.warn("Error checking scanner state:", e);
-                // Hide container as a fallback
-                if (scannerContainer) scannerContainer.classList.add('hidden');
+                if (scannerContainerElem) scannerContainerElem.classList.add('hidden');
             }
         } else {
-             // If instance doesn't exist or is invalid, just hide the container
-             if (scannerContainer) scannerContainer.classList.add('hidden');
+            if (scannerContainerElem) scannerContainerElem.classList.add('hidden');
         }
+
+        if (scannerInstanceVarName === 'offerQrScanner') offerQrScanner = null;
+        else if (scannerInstanceVarName === 'answerQrScanner') answerQrScanner = null;
     }
 
+
     function stopAllScanners() {
-        stopScanner('offer');
-        stopScanner('answer');
+        stopScanner('offerQrScanner');
+        stopScanner('answerQrScanner');
     }
 
 
     // --- File Handling & UI ---
-    if (browseLink) {
-        browseLink.onclick = (e) => {
-            e.preventDefault(); // Prevent '#' navigation
-            fileInput?.click(); // Trigger hidden file input
-        };
-    }
-
+    if (browseLink) browseLink.onclick = (e) => { e.preventDefault(); fileInput?.click(); };
     if (fileInput) fileInput.onchange = (e) => handleFileSelection(e.target.files);
     if (folderInput) folderInput.onchange = (e) => handleFileSelection(e.target.files);
 
-    // Drag and Drop Handlers
     if (dropZone) {
-        dropZone.ondragover = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropZone.classList.add('dragover');
-        };
-        dropZone.ondragleave = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropZone.classList.remove('dragover');
-        };
+        // ... (ondragover, ondragleave same as before) ...
+        dropZone.ondragover = (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('dragover'); };
+        dropZone.ondragleave = (e) => { e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('dragover'); };
         dropZone.ondrop = async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropZone.classList.remove('dragover');
-
+            e.preventDefault(); e.stopPropagation(); dropZone.classList.remove('dragover');
             const items = e.dataTransfer.items;
             let filesToProcess = [];
-
             if (items && items.length > 0 && items[0].webkitGetAsEntry) {
-                 // Use DataTransferItemList API for folder support
                 const promises = [];
                 for (let i = 0; i < items.length; i++) {
                     const entry = items[i].webkitGetAsEntry();
-                    if (entry) {
-                        promises.push(traverseFileTree(entry));
-                    }
+                    if (entry) promises.push(traverseFileTree(entry));
                 }
-                 try {
+                try {
                     const nestedFiles = await Promise.all(promises);
-                    filesToProcess = nestedFiles.flat(); // Flatten the array of arrays
-                 } catch (err) {
-                     console.error("Error traversing file tree:", err);
-                     alert("Error reading dropped folder(s). Please try selecting them manually.");
-                 }
+                    filesToProcess = nestedFiles.flat();
+                } catch (err) {
+                    console.error("Error traversing file tree:", err);
+                    showToast("Error reading dropped folder(s).", "error");
+                }
             } else if (e.dataTransfer.files) {
-                // Fallback for browsers not supporting getAsEntry or for file drops
-                filesToProcess = Array.from(e.dataTransfer.files).map(file => ({ file, path: file.name })); // Create objects with path
+                filesToProcess = Array.from(e.dataTransfer.files).map(file => ({ file, path: file.name }));
             }
-
-            handleFileSelection(filesToProcess);
+            if (filesToProcess.length > 0) handleFileSelection(filesToProcess);
+            else showToast("No valid files or folders dropped.", "warning");
         };
-        // Allow clicking area (except links/labels) to trigger file input
         dropZone.onclick = (e) => {
             if (!e.target.matches('a') && !e.target.matches('label') && !e.target.closest('a') && !e.target.closest('label')) {
                 fileInput?.click();
@@ -787,1140 +894,858 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function traverseFileTree(entry, currentPath = '') {
+        // ... (same as before, uses showToast) ...
         const path = currentPath ? `${currentPath}/${entry.name}` : entry.name;
         let files = [];
-
         if (entry.isFile) {
             try {
                 const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
-                 files.push({ file: file, path: path }); // Store as object with path
+                files.push({ file: file, path: path });
             } catch (err) {
                 console.error(`Error getting file ${path}:`, err);
+                showToast(`Could not read file: ${entry.name}`, 'error');
             }
         } else if (entry.isDirectory) {
             try {
-                 const reader = entry.createReader();
-                 const entries = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
-                 const promises = [];
-                 for (let i = 0; i < entries.length; i++) {
-                     promises.push(traverseFileTree(entries[i], path));
-                 }
-                 const nestedFiles = await Promise.all(promises);
-                 files = files.concat(nestedFiles.flat()); // Collect files from subdirectories
+                const reader = entry.createReader();
+                const entries = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+                const promises = entries.map(subEntry => traverseFileTree(subEntry, path));
+                const nestedFiles = await Promise.all(promises);
+                files = files.concat(nestedFiles.flat());
             } catch (err) {
-                 console.error(`Error reading directory ${path}:`, err);
+                console.error(`Error reading directory ${path}:`, err);
+                showToast(`Could not read directory: ${entry.name}`, 'error');
             }
         }
         return files;
     }
 
     function handleFileSelection(selectedItems) {
+        if (activeTab !== 'send') return; // Only for send tab
         if (!selectedItems || selectedItems.length === 0) return;
 
         let filesAddedCount = 0;
-        const newFiles = [];
+        const newFilesForState = []; // Collect new files for the state object
 
         for (const item of selectedItems) {
-            let file = null;
-            let path = null;
-
-            if (item instanceof File) { // From file input or simple drag/drop
+            let file = null, path = null;
+            if (item instanceof File) {
                 file = item;
-                path = item.webkitRelativePath || item.name; // Use relative path if available (folders)
-            } else if (item && item.file instanceof File && typeof item.path === 'string') { // From traverseFileTree
+                path = item.webkitRelativePath || item.name;
+            } else if (item && item.file instanceof File && typeof item.path === 'string') {
                 file = item.file;
                 path = item.path;
             } else {
                 console.warn("Skipping invalid item:", item);
                 continue;
             }
-
-            // Check for duplicates based on path AND size (more robust)
-            if (filesToSend.some(existing => existing.path === path && existing.file.size === file.size)) {
-                console.warn(`Skipping duplicate: ${path} (Size: ${file.size})`);
+            // Check against current sendTabState.filesToSend for duplicates
+            if (sendTabState.filesToSend.some(existing => existing.path === path && existing.file.size === file.size)) {
+                console.warn(`Skipping duplicate: ${path}`);
                 continue;
             }
-
-            // Add the new file object to our list
-            newFiles.push({ file: file, path: path });
-            totalBytesToSend += file.size;
+            newFilesForState.push({ file: file, path: path });
+            sendTabState.totalBytesToSend += file.size; // Directly update state
             filesAddedCount++;
         }
 
         if (filesAddedCount > 0) {
-             filesToSend = filesToSend.concat(newFiles); // Add new files to the main list
-             updateFileListUI();
-             updateFileSummary();
-             selectedFilesSection.classList.remove('hidden');
-             generateBtn.disabled = false; // Enable generate button
-             passwordSectionSender.classList.remove('hidden'); // Show password option
-             console.log(`Added ${filesAddedCount} items. Total: ${filesToSend.length}`);
-        }
+            sendTabState.filesToSend = sendTabState.filesToSend.concat(newFilesForState); // Update state
+            filesToSend = sendTabState.filesToSend; // Update global alias
+            totalBytesToSend = sendTabState.totalBytesToSend; // Update global alias
 
-        // Reset input fields to allow selecting same file/folder again
+            updateFileListUI();
+            updateFileSummary();
+            sendTabState.isSelectedFilesSectionVisible = true;
+            selectedFilesSection.classList.remove('hidden');
+            sendTabState.isGenerateBtnDisabled = false;
+            generateBtn.disabled = false;
+            sendTabState.isPasswordSectionSenderVisible = true;
+            passwordSectionSender.classList.remove('hidden');
+            showToast(`Added ${filesAddedCount} item(s).`, 'success', 1500);
+        } else if (newFilesForState.length === 0 && selectedItems.length > 0) {
+             showToast('Selected items are duplicates or invalid.', 'info');
+        }
         if (fileInput) fileInput.value = '';
         if (folderInput) folderInput.value = '';
     }
 
-    function updateFileListUI() {
+
+    function updateFileListUI() { // Uses global filesToSend which points to sendTabState.filesToSend
+        // ... (same as before) ...
         if (!selectedFilesList) return;
-
-        selectedFilesList.innerHTML = ''; // Clear existing list
-        revokeObjectUrls(); // Clean up old preview URLs before creating new ones
-
+        selectedFilesList.innerHTML = '';
+        revokeObjectUrls(); // Revoke previously created URLs for previews
         filesToSend.forEach((item, index) => {
-            const file = item.file;
-            const path = item.path;
+            const file = item.file, path = item.path;
             const li = document.createElement('li');
             li.className = 'file-item';
-            li.dataset.index = index; // Store index for removal
+            li.dataset.index = index;
 
-            // --- Preview Column ---
             const previewDiv = document.createElement('div');
             previewDiv.className = 'file-preview';
             const fileType = file.type || '';
-            // Generate preview for small images/videos
-            if ((fileType.startsWith('image/') || fileType.startsWith('video/')) && file.size < 20 * 1024 * 1024) { // Limit preview size
-                 const element = fileType.startsWith('image/') ? document.createElement('img') : document.createElement('video');
-                 const objectURL = URL.createObjectURL(file);
-                 objectUrls.push(objectURL); // Track URL for revocation
-                 element.src = objectURL;
-
-                 if (fileType.startsWith('video/')) {
-                     element.muted = true;
-                     element.preload = 'metadata'; // Load only metadata initially
-                 }
-                 element.alt = `Preview for ${file.name}`;
-                 element.onerror = () => { // Fallback to icon on error
-                     previewDiv.innerHTML = `<i class="fas ${getFileIconClass(fileType)}"></i>`;
-                 };
-                 previewDiv.appendChild(element);
-                 // Add dblclick listener for modal preview
-                 li.ondblclick = () => openPreviewModal(element);
+            let canPreviewModal = false;
+            if ((fileType.startsWith('image/') || fileType.startsWith('video/')) && file.size < 20 * 1024 * 1024) {
+                const element = fileType.startsWith('image/') ? document.createElement('img') : document.createElement('video');
+                const objectURL = URL.createObjectURL(file);
+                objectUrls.push(objectURL);
+                element.src = objectURL;
+                if (fileType.startsWith('video/')) { element.muted = true; element.preload = 'metadata'; }
+                element.alt = `Preview for ${file.name}`;
+                element.onerror = () => { previewDiv.innerHTML = `<i class="fas ${getFileIconClass(fileType)}"></i>`; };
+                previewDiv.appendChild(element);
+                li.ondblclick = () => openPreviewModal(element);
+                canPreviewModal = true;
             } else {
-                // Use Font Awesome icon as fallback
                 previewDiv.innerHTML = `<i class="fas ${getFileIconClass(fileType)}"></i>`;
             }
+            if (canPreviewModal) li.setAttribute('title', 'Double-click to preview');
 
-            // --- Info Column ---
+
             const infoDiv = document.createElement('div');
             infoDiv.className = 'file-info';
-
             const nameSpan = document.createElement('span');
             nameSpan.className = 'file-name';
             nameSpan.textContent = file.name;
-            nameSpan.title = file.name; // Tooltip for long names
+            nameSpan.title = file.name;
             infoDiv.appendChild(nameSpan);
-
-            // Display path only if it's different from the filename (i.e., it's in a folder)
             if (path !== file.name) {
                 const pathSpan = document.createElement('span');
                 pathSpan.className = 'file-path';
                 pathSpan.textContent = path;
-                pathSpan.title = path; // Tooltip for long paths
+                pathSpan.title = path;
                 infoDiv.appendChild(pathSpan);
             }
-
             const sizeSpan = document.createElement('span');
             sizeSpan.className = 'file-size';
             sizeSpan.textContent = formatBytes(file.size);
             infoDiv.appendChild(sizeSpan);
 
-            // --- Remove Button ---
+
             const removeBtn = document.createElement('button');
             removeBtn.className = 'remove-file-btn';
-            removeBtn.innerHTML = '&times;'; // Use × symbol
+            removeBtn.innerHTML = '&times;';
             removeBtn.setAttribute('aria-label', `Remove ${file.name}`);
             removeBtn.title = `Remove ${file.name}`;
-            // Use window.removeFile since this is dynamically created HTML
-            removeBtn.onclick = (e) => {
-                 e.stopPropagation(); // Prevent triggering dblclick on li
-                 window.removeFile(index); // Call the globally accessible function
-            };
+            removeBtn.onclick = (e) => { e.stopPropagation(); window.removeFile(index); };
 
-
-            // --- Assemble List Item ---
             li.appendChild(previewDiv);
             li.appendChild(infoDiv);
-            li.appendChild(removeBtn); // Add remove button last
-
+            li.appendChild(removeBtn);
             selectedFilesList.appendChild(li);
         });
     }
 
-    function updateFileSummary() {
+    function updateFileSummary() { // Uses global totalBytesToSend which points to sendTabState.totalBytesToSend
+        // ... (same as before) ...
         if (!fileSummarySpan) return;
-        const count = filesToSend.length;
+        const count = filesToSend.length; // filesToSend is alias for sendTabState.filesToSend
         fileSummarySpan.textContent = `${count} item${count !== 1 ? 's' : ''} (${formatBytes(totalBytesToSend)})`;
     }
 
     function revokeObjectUrls() {
+        // ... (same as before) ...
         if (objectUrls.length > 0) {
-            console.log(`Revoking ${objectUrls.length} preview URLs.`);
             objectUrls.forEach(url => URL.revokeObjectURL(url));
-            objectUrls = []; // Clear the array
+            objectUrls = [];
+        }
+    }
+
+    // --- WebRTC Signaling & Connection (Generic Setup for Files) ---
+    async function createFileTransferOffer() {
+        connectionInProgress = true; // Set flag
+        // resetState(false); // Partial reset, keep files from sendTabState
+
+        // UI updates are now more targeted based on sendTabState
+        sendTabState.isGenerateBtnDisabled = true;
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
+        updateStatusDisplay(sendStatusMessage, 'Preparing connection...', 'info');
+        sendStatusSection.classList.remove('hidden'); // Make sure it's visible
+
+        const senderPassword = passwordInputSender.value; // Use current input value
+        if (senderPassword && !cryptoAvailable) {
+            showToast("Password feature disabled: Secure Context (HTTPS/localhost) required.", "warning");
+            passwordInputSender.value = ''; // Clear it
+            sendTabState.passwordInputSenderValue = ''; // Update state too
+            passwordHash = null;
+        } else {
+            passwordHash = senderPassword ? await hashPassword(senderPassword) : null;
+            if (senderPassword && !passwordHash && cryptoAvailable) {
+                updateStatusDisplay(sendStatusMessage, 'Error hashing password.', 'error');
+                sendTabState.isGenerateBtnDisabled = false;
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = `<i class="fas fa-share-alt"></i> Generate Share Code`;
+                connectionInProgress = false;
+                return;
+            }
+        }
+
+        console.log(`File Sender: Creating Peer Connection`);
+        try {
+            peerConnection = new RTCPeerConnection(ICE_SERVERS);
+            addPeerConnectionEvents(peerConnection);
+            dataChannel = peerConnection.createDataChannel('ShareWaveChannel', { ordered: true });
+            addDataChannelEvents(dataChannel);
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            console.log(`File Sender: Local description set.`);
+
+            setTimeout(() => {
+                if (!peerConnection || !peerConnection.localDescription) {
+                    console.error("Offer generation failed or connection closed.");
+                    updateStatusDisplay(sendStatusMessage, 'Error: Failed to generate offer.', 'error');
+                    showToast('Error generating connection offer.', 'error');
+                    resetUiToInitial(sendTabState, 'send'); // Full reset of Send tab UI to initial state
+                    connectionInProgress = false;
+                    return;
+                }
+                const offerSDP = JSON.stringify(peerConnection.localDescription);
+                sendTabState.offerSdpTextareaValue = offerSDP; // Save to state
+                offerSdpTextarea.value = offerSDP;
+                generateQRCode(offerQrCodeDiv.id, offerSDP);
+
+                sendTabState.isOfferStepVisible = true; offerStep.classList.remove('hidden');
+                sendTabState.isAnswerStepVisible = true; answerStep.classList.remove('hidden');
+                updateStatusDisplay(sendStatusMessage, `Code generated. ${passwordHash ? 'Password is set. ' : ''}Waiting for Receiver...`, 'info');
+                generateBtn.innerHTML = '<i class="fas fa-check"></i> Code Generated'; // Stays disabled
+                console.log(`File Sender: Offer ready.`);
+            }, 500);
+        } catch (error) {
+            console.error('Offer Creation Error:', error);
+            updateStatusDisplay(sendStatusMessage, `Error creating offer: ${error.message}`, 'error');
+            showToast(`Offer creation failed: ${error.message}`, 'error');
+            resetUiToInitial(sendTabState, 'send');
+            connectionInProgress = false;
+        }
+    }
+
+    async function handleFileTransferAnswerAndConnect() {
+        connectionInProgress = true; // Already set by createFileTransferOffer, but good to ensure
+        const answerSdpText = answerSdpTextarea.value.trim(); // Use current input
+
+        if (!answerSdpText) {
+            updateStatusDisplay(sendStatusMessage, 'Please paste or scan the Receiver\'s code.', 'warning');
+            showToast('Receiver\'s code is missing.', 'warning');
+            return; // Don't reset connectionInProgress here, user might paste code
+        }
+        if (!peerConnection || peerConnection.signalingState !== 'have-local-offer') {
+            updateStatusDisplay(sendStatusMessage, 'Connection error. Regenerate Share Code.', 'error');
+            showToast('Connection state invalid. Please restart.', 'error');
+            resetUiToInitial(sendTabState, 'send');
+            connectionInProgress = false;
+            return;
+        }
+
+        connectBtn.disabled = true;
+        connectBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
+        updateStatusDisplay(sendStatusMessage, 'Processing Receiver\'s code...', 'info');
+
+        try {
+            const answer = JSON.parse(answerSdpText);
+            if (!answer || answer.type !== 'answer' || !answer.sdp) throw new Error("Invalid Answer SDP.");
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+            console.log(`File Sender: Remote description (Answer) set.`);
+            updateStatusDisplay(sendStatusMessage, 'Receiver code accepted. Establishing connection...', 'info');
+            // No changes to sendTabState here, connection events will drive further UI.
+        } catch (error) {
+            console.error('Set Remote Description (Answer) Error:', error);
+            updateStatusDisplay(sendStatusMessage, `Connection Error: ${error.message}`, 'error');
+            showToast(`Connection error: ${error.message}`, 'error');
+            connectBtn.disabled = false;
+            connectBtn.innerHTML = `<i class="fas fa-link"></i> Connect`;
+            // Don't fully reset connectionInProgress, allow retry
+        }
+    }
+
+    async function processFileOfferAndGenerateAnswer() {
+        connectionInProgress = true;
+        // resetState(false); // Partial reset for receiver
+        const offerSdpText = offerSdpInputTextarea.value.trim(); // Use current input
+
+        if (!offerSdpText) {
+            updateStatusDisplay(receiveStatusMessage, 'Please paste or scan Sender\'s code.', 'warning');
+            showToast('Sender\'s code is missing.', 'warning');
+            receiveStatusSection.classList.remove('hidden');
+            connectionInProgress = false; // No actual connection attempt started
+            return;
+        }
+
+        generateAnswerBtn.disabled = true;
+        generateAnswerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        updateStatusDisplay(receiveStatusMessage, 'Processing Sender\'s code...', 'info');
+        receiveStatusSection.classList.remove('hidden');
+
+        try {
+            const offer = JSON.parse(offerSdpText);
+            if (!offer || offer.type !== 'offer' || !offer.sdp) throw new Error("Invalid Offer SDP.");
+
+            console.log(`File Receiver: Creating Peer Connection`);
+            peerConnection = new RTCPeerConnection(ICE_SERVERS);
+            addPeerConnectionEvents(peerConnection);
+            peerConnection.ondatachannel = (event) => {
+                console.log(`File Receiver: Data Channel Received`);
+                dataChannel = event.channel;
+                addDataChannelEvents(dataChannel);
+            };
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            console.log(`File Receiver: Remote description (Offer) set.`);
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            console.log(`File Receiver: Local description (Answer) set.`);
+
+            setTimeout(() => {
+                if (!peerConnection || !peerConnection.localDescription) {
+                    console.error("Answer generation failed or connection closed.");
+                    updateStatusDisplay(receiveStatusMessage, 'Error: Failed to generate response.', 'error');
+                    showToast('Failed to generate response code.', 'error');
+                    resetUiToInitial(receiveTabState, 'receive');
+                    connectionInProgress = false;
+                    return;
+                }
+                const answerSDP = JSON.stringify(peerConnection.localDescription);
+                receiveTabState.answerSdpOutputTextareaValue = answerSDP; // Save to state
+                answerSdpOutputTextarea.value = answerSDP;
+                generateQRCode(answerQrCodeDiv.id, answerSDP);
+
+                receiveTabState.isAnswerOutputStepVisible = true; answerOutputStep.classList.remove('hidden');
+                offerInputStep.classList.add('hidden'); // Hide offer input step
+                receiveTabState.isReceiverWaitMessageVisible = true; receiverWaitMessage.classList.remove('hidden'); // Show wait message
+                updateStatusDisplay(receiveStatusMessage, "Response code generated. Share with Sender.", 'info');
+                generateAnswerBtn.innerHTML = '<i class="fas fa-check"></i> Code Generated'; // Stays disabled
+                console.log(`File Receiver: Answer ready.`);
+            }, 500);
+        } catch (error) {
+            console.error('Answer Creation Error:', error);
+            updateStatusDisplay(receiveStatusMessage, `Error processing Sender code: ${error.message}`, 'error');
+            showToast(`Error with Sender's code: ${error.message}`, 'error');
+            resetUiToInitial(receiveTabState, 'receive');
+            connectionInProgress = false;
         }
     }
 
 
-    // --- WebRTC Signaling & Connection ---
-    if (generateBtn) {
-        generateBtn.onclick = async () => { // Sender starts process
-            if (filesToSend.length === 0) {
-                alert("Please select files or a folder to share first.");
-                return;
-            }
-            resetState(false); // Partial reset, keep files
-            generateBtn.disabled = true;
-            generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
-            updateStatusMessage(sendStatusMessage, 'Preparing connection...', 'info');
-            sendStatusSection.classList.remove('hidden');
+    // --- Event Listeners for File Send/Receive ---
+    if (generateBtn) generateBtn.onclick = createFileTransferOffer;
+    if (scanAnswerQrBtn) scanAnswerQrBtn.onclick = () => startScanner('answer-scanner-box', 'answer-scan-status', 'answer-scanner-area', 'file-answer', (txt) => {
+        answerSdpTextarea.value = txt;
+        sendTabState.answerSdpTextareaValue = txt; // Update state if needed before connect
+    });
+    if (connectBtn) connectBtn.onclick = handleFileTransferAnswerAndConnect;
 
-            // Hash password if provided
-            const senderPassword = passwordInputSender.value;
-            passwordHash = senderPassword ? await hashPassword(senderPassword) : null;
-            if (senderPassword && !passwordHash && cryptoAvailable) { // Check cryptoAvailable here
-                updateStatusMessage(sendStatusMessage, 'Error hashing password. Cannot proceed.', 'error');
-                generateBtn.disabled = false; // Re-enable button
-                generateBtn.innerHTML = '<i class="fas fa-share-alt"></i> Generate Share Code';
-                return;
-            }
-             if (senderPassword && !cryptoAvailable) {
-                 alert("Cannot use password feature: Secure Context (HTTPS/localhost) required for hashing.");
-                 updateStatusMessage(sendStatusMessage, 'Password feature disabled (insecure context).', 'warning');
-                 // Optionally clear password or disable field
-                 passwordInputSender.value = '';
-                 passwordHash = null; // Ensure hash is null
-            }
-
-
-            console.log('Sender: Creating Peer Connection');
-            try {
-                peerConnection = new RTCPeerConnection(ICE_SERVERS);
-                addPeerConnectionEvents(peerConnection); // Attach event listeners
-
-                console.log('Sender: Creating Data Channel');
-                dataChannel = peerConnection.createDataChannel('ShareWaveV5Channel', { ordered: true });
-                addDataChannelEvents(dataChannel); // Attach data channel listeners
-
-                console.log('Sender: Creating Offer');
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                console.log('Sender: Local description set.');
-
-                // Wait briefly for ICE candidates to gather
-                setTimeout(() => {
-                    if (!peerConnection || !peerConnection.localDescription) {
-                        console.error("Offer generation failed or connection closed prematurely.");
-                        updateStatusMessage(sendStatusMessage, 'Error: Failed to generate offer.', 'error');
-                        resetState(false); // Reset UI state
-                        return;
-                    }
-                    const offerSDP = JSON.stringify(peerConnection.localDescription);
-                    offerSdpTextarea.value = offerSDP;
-                    generateQRCode('offer-qr-code', offerSDP); // Generate QR from SDP
-
-                    offerStep.classList.remove('hidden');
-                    answerStep.classList.remove('hidden');
-                    updateStatusMessage(sendStatusMessage, `Share Code generated. ${passwordHash ? 'Password is set. ' : ''}Waiting for Receiver...`, 'info');
-                    generateBtn.innerHTML = '<i class="fas fa-check"></i> Code Generated'; // Update button state
-                    console.log('Sender: Offer ready.');
-
-                }, 500); // 500ms delay for ICE gathering
-
-            } catch (error) {
-                console.error('Offer Creation/Setup Error:', error);
-                updateStatusMessage(sendStatusMessage, `Error creating offer: ${error.message}`, 'error');
-                resetState(false); // Reset state but keep files
-                generateBtn.disabled = filesToSend.length === 0; // Re-enable if files exist
-                generateBtn.innerHTML = '<i class="fas fa-share-alt"></i> Generate Share Code';
-                closePeerConnection(); // Clean up any partial connection
-            }
-        };
-    }
-
-    if (scanAnswerQrBtn) {
-        scanAnswerQrBtn.onclick = () => {
-            // Call startScanner with relevant IDs and callback
-            startScanner(
-                'answer-scanner-box',      // Element ID for the video feed/scanner UI
-                'answer-scan-status',      // Element ID for status messages
-                'answer-scanner-area',     // Element ID for the scanner container div
-                'answer',                  // Identifier for this scanner instance
-                (scannedText) => {         // Success callback
-                    answerSdpTextarea.value = scannedText; // Populate textarea with scanned code
-                }
-            );
-        };
-    }
-
-    if (connectBtn) {
-        connectBtn.onclick = async () => { // Sender connects using Receiver's answer
-            const answerSdpText = answerSdpTextarea.value.trim();
-            if (!answerSdpText) {
-                updateStatusMessage(sendStatusMessage, 'Please paste or scan the Receiver\'s code first.', 'warning');
-                return;
-            }
-
-            if (!peerConnection || peerConnection.signalingState !== 'have-local-offer') {
-                // This can happen if the connection was closed or never properly initialized
-                updateStatusMessage(sendStatusMessage, 'Connection state error. Please regenerate your Share Code.', 'error');
-                resetState(false); // Reset state, keep files
-                return;
-            }
-
-            connectBtn.disabled = true;
-            connectBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
-            updateStatusMessage(sendStatusMessage, 'Processing Receiver\'s code...', 'info');
-
-            try {
-                const answer = JSON.parse(answerSdpText);
-                // Validate if it looks like an SDP answer (basic check)
-                if (!answer || answer.type !== 'answer' || !answer.sdp) {
-                    throw new Error("Invalid Answer SDP format.");
-                }
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-                console.log('Sender: Remote description (Answer) set.');
-                updateStatusMessage(sendStatusMessage, 'Receiver code accepted. Establishing connection...', 'info');
-                // Connection state change events will handle further updates ('connecting', 'connected')
-            } catch (error) {
-                console.error('Set Remote Description (Answer) Error:', error);
-                updateStatusMessage(sendStatusMessage, `Connection Error: Invalid code or network issue. ${error.message}`, 'error');
-                connectBtn.disabled = false; // Re-enable connect button
-                connectBtn.innerHTML = '<i class="fas fa-link"></i> Connect';
-                // Do not reset fully here, allow user to retry with corrected code
-            }
-        };
-    }
-
-    if (scanOfferQrBtn) {
-        scanOfferQrBtn.onclick = () => {
-            // Call startScanner for the offer code
-            startScanner(
-                'offer-scanner-box',
-                'offer-scan-status',
-                'offer-scanner-area',
-                'offer',
-                (scannedText) => {
-                    offerSdpInputTextarea.value = scannedText; // Populate receiver's input
-                }
-            );
-        };
-    }
-
-    if (generateAnswerBtn) {
-        generateAnswerBtn.onclick = async () => { // Receiver generates Answer from Sender's Offer
-            const offerSdpText = offerSdpInputTextarea.value.trim();
-            if (!offerSdpText) {
-                updateStatusMessage(receiveStatusMessage, 'Please paste or scan the Sender\'s code first.', 'warning');
-                receiveStatusSection.classList.remove('hidden'); // Show status section for message
-                return;
-            }
-
-            resetState(false); // Partial reset for receiver
-            generateAnswerBtn.disabled = true;
-            generateAnswerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-            updateStatusMessage(receiveStatusMessage, 'Processing Sender\'s code...', 'info');
-            receiveStatusSection.classList.remove('hidden'); // Show status
-
-            try {
-                const offer = JSON.parse(offerSdpText);
-                 // Validate if it looks like an SDP offer (basic check)
-                if (!offer || offer.type !== 'offer' || !offer.sdp) {
-                    throw new Error("Invalid Offer SDP format.");
-                }
-
-                console.log('Receiver: Creating Peer Connection');
-                peerConnection = new RTCPeerConnection(ICE_SERVERS);
-                addPeerConnectionEvents(peerConnection); // Attach event listeners
-
-                // IMPORTANT: Set up the data channel handler *before* setting remote description
-                peerConnection.ondatachannel = (event) => {
-                    console.log('Receiver: Data Channel Received');
-                    dataChannel = event.channel;
-                    addDataChannelEvents(dataChannel); // Attach listeners to the received channel
-                };
-
-                await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-                console.log('Receiver: Remote description (Offer) set.');
-
-                console.log('Receiver: Creating Answer');
-                const answer = await peerConnection.createAnswer();
-                await peerConnection.setLocalDescription(answer);
-                console.log('Receiver: Local description (Answer) set.');
-
-                // Wait briefly for ICE candidates
-                setTimeout(() => {
-                    if (!peerConnection || !peerConnection.localDescription) {
-                        console.error("Answer generation failed or connection closed prematurely.");
-                        updateStatusMessage(receiveStatusMessage, 'Error: Failed to generate response code.', 'error');
-                        resetState(false); // Reset UI state
-                        return;
-                    }
-                    const answerSDP = JSON.stringify(peerConnection.localDescription);
-                    answerSdpOutputTextarea.value = answerSDP;
-                    generateQRCode('answer-qr-code', answerSDP); // Generate QR
-
-                    answerOutputStep.classList.remove('hidden'); // Show answer output
-                    offerInputStep.classList.add('hidden'); // Hide offer input
-                    updateStatusMessage(receiveStatusMessage, "Response code generated. Share it with the Sender. Waiting for connection...", 'info');
-                    generateAnswerBtn.innerHTML = '<i class="fas fa-check"></i> Code Generated';
-                    console.log('Receiver: Answer ready.');
-
-                }, 500); // Delay for ICE
-
-            } catch (error) {
-                console.error('Answer Creation/Setup Error:', error);
-                updateStatusMessage(receiveStatusMessage, `Error processing Sender code: ${error.message}. Please check the code and try again.`, 'error');
-                resetState(false); // Reset receiver state
-                generateAnswerBtn.disabled = false; // Re-enable button
-                generateAnswerBtn.innerHTML = '<i class="fas fa-reply"></i> Generate Response Code';
-                offerInputStep.classList.remove('hidden'); // Show offer input again
-                closePeerConnection(); // Clean up any partial connection
-            }
-        };
-    }
-
-    // Receiver Verify Password Button Click Handler
-    if (verifyPasswordBtn) {
-        verifyPasswordBtn.onclick = async () => {
-            const receiverPassword = passwordInputReceiver.value;
-            if (!receiverPassword) {
-                alert("Please enter the password provided by the sender.");
-                return;
-            }
-             if (!cryptoAvailable) {
-                 alert("Cannot verify password: Secure Context (HTTPS/localhost) required for hashing.");
-                 // Optionally disable field or hide section again
-                 return;
-             }
-
-
-            verifyPasswordBtn.disabled = true;
-            verifyPasswordBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
-
-            const receiverHash = await hashPassword(receiverPassword);
-            if (!receiverHash) {
-                alert("Error hashing password. Cannot verify.");
-                verifyPasswordBtn.disabled = false;
-                verifyPasswordBtn.innerHTML = '<i class="fas fa-check"></i> Verify';
-                return;
-            }
-
-            // Send the hashed password to the sender for verification
-            sendControlMessage({ type: 'password_check', hash: receiverHash });
-            updateStatusMessage(receiveStatusMessage, "Verifying password with sender...", 'info');
-
-            // The sender will respond with 'password_correct' or 'password_incorrect' via control messages
-            // UI update (hiding section) happens after response or timeout ideally, but hiding immediately simplifies UI flow.
-            // Re-enable button in case of error/retry needed (handled in message handler)
-            // verifyPasswordBtn.disabled = false; // Re-enablement handled by message responses
-            // verifyPasswordBtn.innerHTML = '<i class="fas fa-check"></i> Verify';
-            // Consider adding a timeout here in case the sender doesn't respond
-        };
-    }
+    if (scanOfferQrBtn) scanOfferQrBtn.onclick = () => startScanner('offer-scanner-box', 'offer-scan-status', 'offer-scanner-area', 'file-offer', (txt) => {
+        offerSdpInputTextarea.value = txt;
+        receiveTabState.offerSdpInputTextareaValue = txt; // Update state
+    });
+    if (generateAnswerBtn) generateAnswerBtn.onclick = processFileOfferAndGenerateAnswer;
+    if (verifyPasswordBtn) verifyPasswordBtn.onclick = async () => {
+        // ... (same as before, uses showToast) ...
+        const receiverPassword = passwordInputReceiver.value;
+        if (!receiverPassword) {
+            showToast("Please enter the password.", "warning"); return;
+        }
+        if (!cryptoAvailable) {
+            showToast("Password verification disabled (insecure context).", "error"); return;
+        }
+        verifyPasswordBtn.disabled = true;
+        verifyPasswordBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+        const receiverHash = await hashPassword(receiverPassword);
+        if (!receiverHash) {
+            showToast("Error hashing password for verification.", "error");
+            verifyPasswordBtn.disabled = false;
+            verifyPasswordBtn.innerHTML = '<i class="fas fa-check"></i> Verify'; return;
+        }
+        sendControlMessage({ type: 'password_check', hash: receiverHash });
+        updateStatusDisplay(receiveStatusMessage, "Verifying password with sender...", 'info');
+    };
 
 
     // --- WebRTC Event Handlers ---
     function addPeerConnectionEvents(pc) {
+        // ... (same as before, uses showToast, addHistoryEntry, resetUiToInitial, connectionInProgress flag) ...
         if (!pc) return;
-
         pc.onicecandidate = (event) => {
-            // Although we use Trickle ICE implicitly, logging candidates can be useful for debugging
-            if (event.candidate) {
-                console.log(`ICE Candidate: ${event.candidate.sdpMLineIndex} ${event.candidate.candidate.split(' ')[4]}`);
-            } else {
-                console.log("ICE Candidate gathering complete.");
-            }
+            if (event.candidate) console.log(`ICE Candidate: ${event.candidate.sdpMLineIndex}`);
+            else console.log("ICE Gathering complete.");
         };
-
-        pc.onicegatheringstatechange = () => {
-             if (pc) { // Check if pc still exists
-                 console.log(`ICE Gathering State: ${pc.iceGatheringState}`);
-             }
-        };
-
-        pc.onsignalingstatechange = () => {
-             if (pc) { // Check if pc still exists
-                console.log(`Signaling State: ${pc.signalingState}`);
-             }
-        };
-
+        pc.onicegatheringstatechange = () => { if (pc) console.log(`ICE Gathering State: ${pc.iceGatheringState}`); };
+        pc.onsignalingstatechange = () => { if (pc) console.log(`Signaling State: ${pc.signalingState}`); };
         pc.onconnectionstatechange = () => {
-             if (!pc) return; // Connection might have been closed
+            if (!pc) return;
+            console.log(`Connection State: ${pc.connectionState}`);
+            const statusMsgElement = isSenderRole ? sendStatusMessage : receiveStatusMessage;
 
-             console.log(`Connection State: ${pc.connectionState}`);
-             const statusMsgElement = isSender ? sendStatusMessage : receiveStatusMessage;
+            switch (pc.connectionState) {
+                case 'new': case 'checking':
+                    updateStatusDisplay(statusMsgElement, 'Establishing connection...', 'info'); break;
+                case 'connecting':
+                    updateStatusDisplay(statusMsgElement, 'Connecting to peer...', 'info'); break;
+                case 'connected':
+                    updateStatusDisplay(statusMsgElement, 'Peer connected! Initializing data channel...', 'success');
+                    showToast('Connection established!', 'success');
+                    // Hide signaling UI elements for the current tab
+                    if (isSenderRole) {
+                        offerStep.classList.add('hidden'); sendTabState.isOfferStepVisible = false;
+                        answerStep.classList.add('hidden'); sendTabState.isAnswerStepVisible = false;
+                        cancelTransferBtn.disabled = false;
+                    } else {
+                        offerInputStep.classList.add('hidden');
+                        answerOutputStep.classList.add('hidden'); receiveTabState.isAnswerOutputStepVisible = false;
+                    }
+                    break;
+                case 'disconnected':
+                    updateStatusDisplay(statusMsgElement, 'Connection disconnected.', 'warning');
+                    showToast('Connection lost. Attempting to reconnect...', 'warning');
+                    enableChatForCurrentTab(false);
+                    stopSpeedAndETRCalc(); break;
+                case 'closed':
+                    updateStatusDisplay(statusMsgElement, 'Connection closed.', 'info');
+                    enableChatForCurrentTab(false);
+                    const isIncomplete = isSenderRole ? (totalBytesSent < sendTabState.totalBytesToSend && sendTabState.totalBytesToSend > 0)
+                                             : (receivedSize < (filesMetadata ? filesMetadata.reduce((s, m) => s + m.size, 0) : 0) && filesMetadata);
+                    if (isIncomplete && connectionInProgress) { // Only add history if a transfer was attempted
+                        updateStatusDisplay(statusMsgElement, 'Connection closed: Transfer incomplete.', 'warning');
+                        addHistoryEntry(
+                            isSenderRole ? sendTabState.filesToSend.map(f => f.file.name).join(', ') : filesMetadata?.map(f => f.name).join(', '),
+                            isSenderRole ? totalBytesSent : receivedSize, false, false, 'file'
+                        );
+                    }
+                    closePeerConnection(); // This sets connectionInProgress = false
+                    // After closing, reset the UI of the *current* tab to its initial state
+                    // because the connection specific UI (like progress, status) is no longer valid.
+                    // Don't reset the other tab's non-connection state.
+                    if (activeTab === 'send') resetUiToInitial(sendTabState, 'send');
+                    else if (activeTab === 'receive') resetUiToInitial(receiveTabState, 'receive');
 
-             switch (pc.connectionState) {
-                 case 'new':
-                 case 'checking':
-                     updateStatusMessage(statusMsgElement, 'Establishing connection...', 'info');
-                     break;
-                 case 'connecting':
-                     updateStatusMessage(statusMsgElement, 'Connecting to peer...', 'info');
-                     break;
-                 case 'connected':
-                     // Connection established! Now wait for data channel to open.
-                     updateStatusMessage(statusMsgElement, 'Peer connected! Initializing data channel...', 'success');
-                     // Hide signaling UI elements
-                     offerStep?.classList.add('hidden');
-                     answerStep?.classList.add('hidden');
-                     offerInputStep?.classList.add('hidden');
-                     answerOutputStep?.classList.add('hidden');
-                     // Chat can be enabled once data channel is open
-                     if (isSender) {
-                         cancelTransferBtn.disabled = false; // Enable cancel early
-                         // Pause/Resume enabled later when transfer actually starts
-                     } else {
-                         downloadAllBtn.disabled = true; // Downloads enabled when files are received
-                         downloadZipBtn.disabled = true;
-                     }
-                     break;
-                 case 'disconnected':
-                     // May recover automatically, but often indicates a problem
-                     updateStatusMessage(statusMsgElement, 'Connection disconnected. Attempting to reconnect...', 'warning');
-                     enableChat(false);
-                     stopSpeedAndETRCalc(); // Pause calculation
-                     // Don't close connection immediately, WebRTC might recover
-                     break;
-                 case 'closed':
-                     updateStatusMessage(statusMsgElement, 'Connection closed.', 'info');
-                     enableChat(false);
-                     closePeerConnection(); // Ensure cleanup
-                     // Check if transfer was incomplete
-                     const isIncomplete = isSender ? (totalBytesSent < totalBytesToSend && totalBytesToSend > 0) : (receivedSize < (filesMetadata ? filesMetadata.reduce((s, m) => s + m.size, 0) : 0) && filesMetadata);
-                     if (isIncomplete) {
-                         updateStatusMessage(statusMsgElement, 'Connection closed: Transfer incomplete.', 'warning');
-                          addHistoryEntry(
-                             isSender ? filesToSend.map(f => f.file.name).join(', ') : filesMetadata?.map(f => f.name).join(', '),
-                             isSender ? totalBytesSent : receivedSize,
-                             false, // Not successful
-                             false  // Not explicitly cancelled (unless cancel message was received prior)
-                         );
-                     }
-                     break;
-                 case 'failed':
-                     updateStatusMessage(statusMsgElement, 'Connection failed. Please check network and restart transfer.', 'error');
-                     enableChat(false);
-                     closePeerConnection(); // Clean up failed connection
-
-                     // Reset buttons to allow retry
-                     if (isSender) {
-                         generateBtn.disabled = filesToSend.length === 0;
-                         connectBtn.disabled = false;
-                         connectBtn.innerHTML = '<i class="fas fa-link"></i> Connect';
-                         answerStep?.classList.remove('hidden'); // Show answer input again potentially
-                     } else {
-                         generateAnswerBtn.disabled = false;
-                         generateAnswerBtn.innerHTML = '<i class="fas fa-reply"></i> Generate Response Code';
-                         offerInputStep?.classList.remove('hidden'); // Show offer input again
-                     }
-                      addHistoryEntry(
-                         isSender ? filesToSend.map(f => f.file.name).join(', ') : 'N/A', // Filenames might not be known on receiver fail
-                         0, false, false
-                     );
-                     break;
-             }
+                    break;
+                case 'failed':
+                    updateStatusDisplay(statusMsgElement, 'Connection failed. Please restart.', 'error');
+                    showToast('Connection failed. Please check network and restart.', 'error');
+                    enableChatForCurrentTab(false);
+                    if(connectionInProgress) { // Only add history if connection was being attempted
+                        addHistoryEntry(
+                            isSenderRole ? sendTabState.filesToSend.map(f=>f.file.name).join(', ') : 'N/A',
+                            0, false, false, 'file'
+                        );
+                    }
+                    closePeerConnection(); // Sets connectionInProgress = false
+                    if (activeTab === 'send') resetUiToInitial(sendTabState, 'send');
+                    else if (activeTab === 'receive') resetUiToInitial(receiveTabState, 'receive');
+                    break;
+            }
         };
     }
 
     function addDataChannelEvents(dc) {
+        // ... (same as before, uses showToast, addHistoryEntry, connectionInProgress) ...
         if (!dc) return;
-
         dc.onopen = () => {
             console.log('Data Channel Opened');
-            enableChat(true); // Enable chat input/buttons
+            enableChatForCurrentTab(true);
 
-            if (isSender) {
-                updateSendProgress(0, 'Data channel open. Calculating hashes & sending file details...', 'info');
-                sendMetadata(); // Sender initiates by sending metadata (includes password flag, calculates hashes)
+            if (isSenderRole) {
+                updateSendProgressUI(0, 'Data channel open. Sending file details...', 'info');
+                sendMetadata(); // This function now uses sendTabState.filesToSend
             } else {
-                updateReceiveProgress(0, 'Data channel open. Waiting for file details from sender...', 'info');
-                // Receiver waits for 'metadata' message before proceeding
+                updateReceiveProgressUI(0, 'Data channel open. Waiting for file details...', 'info');
             }
         };
-
         dc.onclose = () => {
             console.log('Data Channel Closed');
-            enableChat(false);
-            stopSpeedAndETRCalc(); // Stop speed calculation
-            const statusMsgElement = isSender ? sendStatusMessage : receiveStatusMessage;
-            const currentBytes = isSender ? totalBytesSent : receivedSize;
-            const totalBytes = isSender ? totalBytesToSend : (filesMetadata ? filesMetadata.reduce((s, m) => s + m.size, 0) : 0);
-
-            // Check if closed unexpectedly during transfer
-             if (peerConnection && ['connected', 'connecting', 'checking'].includes(peerConnection.connectionState) && currentBytes < totalBytes && totalBytes > 0) {
-                 updateStatusMessage(statusMsgElement, 'Transfer interrupted: Data channel closed unexpectedly.', 'error');
-                  addHistoryEntry(
-                     isSender ? filesToSend.map(f => f.file.name).join(', ') : filesMetadata?.map(f => f.name).join(', '),
-                     currentBytes, false, false
-                 );
-             } else if (currentBytes >= totalBytes && totalBytes > 0) {
-                 console.log("Data channel closed normally after transfer completion.");
-                 // Status already updated in progress functions or message handlers
-             } else {
-                  console.log("Data channel closed normally.");
-                 // No action needed if transfer wasn't in progress or already handled
-             }
-            // Disable transfer controls
-            pauseResumeBtn.disabled = true;
-            cancelTransferBtn.disabled = true;
-            // Consider calling full closePeerConnection if state requires it
-            // closePeerConnection();
+            enableChatForCurrentTab(false);
+            stopSpeedAndETRCalc();
+            // Additional logic if closed unexpectedly during active transfer
+            if (connectionInProgress && peerConnection && ['connected', 'connecting', 'checking'].includes(peerConnection.connectionState)) {
+                 const statusMsgElement = isSenderRole ? sendStatusMessage : receiveStatusMessage;
+                 updateStatusDisplay(statusMsgElement, 'Transfer interrupted: Data channel closed.', 'error');
+                 if (isSenderRole && totalBytesSent < sendTabState.totalBytesToSend && sendTabState.totalBytesToSend > 0) {
+                    addHistoryEntry(sendTabState.filesToSend.map(f=>f.file.name).join(', '), totalBytesSent, false, false, 'file');
+                 } else if (!isSenderRole && filesMetadata && receivedSize < filesMetadata.reduce((s,m)=>s+m.size,0)) {
+                    addHistoryEntry(filesMetadata.map(f=>f.name).join(', '), receivedSize, false, false, 'file');
+                 }
+            }
+            // connectionInProgress = false; // Should be handled by peerconnection state 'closed' or 'failed'
         };
-
         dc.onerror = (error) => {
             console.error('Data Channel Error:', error);
-            enableChat(false);
+            enableChatForCurrentTab(false);
             stopSpeedAndETRCalc();
-            const statusMsgElement = isSender ? sendStatusMessage : receiveStatusMessage;
-            updateStatusMessage(statusMsgElement, `Transfer error: ${error.error?.message || 'Unknown data channel error'}. Connection closed.`, 'error');
-             addHistoryEntry(
-                isSender ? filesToSend.map(f => f.file.name).join(', ') : filesMetadata?.map(f => f.name).join(', '),
-                isSender ? totalBytesSent : receivedSize, false, false
-            );
-            closePeerConnection(); // Close connection fully on data channel error
-            pauseResumeBtn.disabled = true;
-            cancelTransferBtn.disabled = true;
+            const errText = error.error?.message || 'Unknown data channel error';
+            updateStatusDisplay(isSenderRole ? sendStatusMessage : receiveStatusMessage, `Transfer error: ${errText}.`, 'error');
+            showToast(`Data channel error: ${errText}`, 'error');
+             if(connectionInProgress) {
+                addHistoryEntry(
+                    isSenderRole ? sendTabState.filesToSend.map(f => f.file.name).join(', ') : filesMetadata?.map(f => f.name).join(', '),
+                    isSenderRole ? totalBytesSent : receivedSize, false, false, 'file'
+                );
+             }
+            closePeerConnection();
         };
-
-        // Handle incoming messages (both ArrayBuffer chunks and JSON control messages)
         dc.onmessage = handleDataChannelMessage;
-
-        // Monitor buffered amount (optional but good practice)
-         dc.onbufferedamountlow = () => {
-             // console.log("Data channel buffer low - ready for more data.");
-             // Can potentially trigger sending more data if a manual buffering strategy is used
-         };
     }
-
 
     // --- Data Channel Message Handler ---
     async function handleDataChannelMessage(event) {
-        // --- Binary Data (File Chunks) ---
+        // ... (same as before, uses showToast, addHistoryEntry, connectionInProgress) ...
+        // Ensure this function correctly identifies if it's for file data or control messages.
+        // File chunk processing:
         if (event.data instanceof ArrayBuffer) {
-            if (isSender || transferPaused || !filesMetadata) {
-                // Ignore chunks if sender, paused, or metadata not received yet
-                 if (!filesMetadata && !isSender) console.warn("Received chunk before metadata.");
-                return;
-            }
-
+            if (isSenderRole || transferPaused || !filesMetadata) return; // Sender doesn't receive chunks
             try {
                 const chunk = event.data;
-                if (currentReceivingFileIndex >= filesMetadata.length) {
-                    console.warn("Received chunk after all files processed.");
-                    return; // Already received all files
-                }
-
+                if (currentReceivingFileIndex >= filesMetadata.length) return;
                 receiveBuffer.push(chunk);
                 receivedSize += chunk.byteLength;
                 currentFileReceivedSize += chunk.byteLength;
-
-                updateReceiveProgress(receivedSize); // Update overall progress
+                updateReceiveProgressUI(receivedSize);
 
                 const currentFileMeta = filesMetadata[currentReceivingFileIndex];
                 const currentListItem = receivedFilesList.querySelector(`li[data-filename="${CSS.escape(currentFileMeta.name)}"][data-filepath="${CSS.escape(currentFileMeta.path)}"]`);
-                // Add transferring class visual indicator
                 if (currentListItem && !currentListItem.classList.contains('transferring')) {
-                    receivedFilesList.querySelectorAll('.transferring').forEach(el => el.classList.remove('transferring')); // Remove from others
+                    receivedFilesList.querySelectorAll('.transferring').forEach(el => el.classList.remove('transferring'));
                     currentListItem.classList.add('transferring');
                 }
 
-
-                // Check if the current file is complete
                 if (currentFileReceivedSize >= currentFileMeta.size) {
-                    console.log(`Receiver: File ${currentFileMeta.name} (${currentFileMeta.path}) chunk reception complete.`);
-                     if (currentListItem) currentListItem.classList.remove('transferring');
+                    console.log(`Receiver: File ${currentFileMeta.name} chunks complete.`);
+                    if (currentListItem) currentListItem.classList.remove('transferring');
+                    const completeBuffer = receiveBuffer.slice(0);
+                    const receivedBlob = new Blob(completeBuffer, { type: currentFileMeta.type });
+                    const finalBlob = (receivedBlob.size > currentFileMeta.size) ? receivedBlob.slice(0, currentFileMeta.size, currentFileMeta.type) : receivedBlob;
 
-                    // Assemble the blob - handle potential overshoot (rare)
-                    const completeBuffer = receiveBuffer.slice(0); // Get all chunks for this file
-                     const receivedBlob = new Blob(completeBuffer, { type: currentFileMeta.type });
-                     // Ensure final blob size matches metadata exactly
-                     const finalBlob = (receivedBlob.size > currentFileMeta.size)
-                         ? receivedBlob.slice(0, currentFileMeta.size, currentFileMeta.type)
-                         : receivedBlob;
-
-
-                    // --- Hash Verification ---
                     const hashStatusElement = currentListItem?.querySelector('.file-hash-status');
                     if (hashStatusElement) {
                         hashStatusElement.textContent = 'Verifying...';
                         hashStatusElement.className = 'file-hash-status checking';
                     }
+                    const receivedHash = await calculateHash(finalBlob);
+                    const expectedHash = currentFileMeta.hash;
+                    let isValid = false;
+                    if (cryptoAvailable && expectedHash) isValid = receivedHash === expectedHash;
 
-                     calculateHash(finalBlob).then(receivedHash => {
-                         const expectedHash = currentFileMeta.hash;
-                         const isValid = cryptoAvailable && expectedHash && receivedHash === expectedHash;
-                         console.log(`File: ${currentFileMeta.name}, Expected Hash: ${expectedHash}, Received Hash: ${receivedHash}, Valid: ${isValid}`);
+                    console.log(`File: ${currentFileMeta.name}, Expected: ${expectedHash}, Received: ${receivedHash}, Valid: ${isValid}`);
+                    if (hashStatusElement) {
+                        if (!cryptoAvailable) { hashStatusElement.textContent = 'No Verify'; hashStatusElement.className = 'file-hash-status no-verify'; }
+                        else if (!expectedHash) { hashStatusElement.textContent = 'No Hash'; hashStatusElement.className = 'file-hash-status no-hash'; }
+                        else { hashStatusElement.textContent = isValid ? 'Verified' : 'Invalid!'; hashStatusElement.className = 'file-hash-status ' + (isValid ? 'valid' : 'invalid'); }
+                    }
+                    if (currentListItem && !isValid && cryptoAvailable && expectedHash) showToast(`Hash mismatch for ${currentFileMeta.name}! File may be corrupt.`, 'error');
 
-                         if (hashStatusElement) {
-                              if (!cryptoAvailable) {
-                                  hashStatusElement.textContent = 'No Verify';
-                                  hashStatusElement.className = 'file-hash-status pending'; // Or a specific class
-                              } else if (!expectedHash) {
-                                 hashStatusElement.textContent = 'No Hash';
-                                 hashStatusElement.className = 'file-hash-status pending';
-                              } else {
-                                 hashStatusElement.textContent = isValid ? 'Verified' : 'Invalid!';
-                                 hashStatusElement.className = 'file-hash-status ' + (isValid ? 'valid' : 'invalid');
-                              }
-                         }
 
-                        // Add file to received list only after potential hash check
-                        receivedFiles.push({
-                            blob: finalBlob,
-                            name: currentFileMeta.name,
-                            type: currentFileMeta.type,
-                            path: currentFileMeta.path
-                        });
-
-                        // Update UI for this specific file item
-                        if (currentListItem) {
-                            currentListItem.classList.add('ready'); // Mark as ready
-                            const downloadBtn = currentListItem.querySelector('.download-btn');
-                            const fileSizeSpan = currentListItem.querySelector('.file-size');
-                            if (downloadBtn) {
-                                const objectURL = URL.createObjectURL(finalBlob);
-                                objectUrls.push(objectURL); // Track URL
-                                downloadBtn.href = objectURL;
-                                downloadBtn.classList.remove('hidden'); // Show download button
-                            }
-                            if (fileSizeSpan) {
-                                fileSizeSpan.textContent = formatBytes(finalBlob.size); // Update size display
-                            }
-                             // Add preview capability if applicable
-                             if (currentFileMeta.type.startsWith('image/') || currentFileMeta.type.startsWith('video/')) {
-                                 const previewEl = currentFileMeta.type.startsWith('image/') ? new Image() : document.createElement('video');
-                                 previewEl.src = downloadBtn.href; // Use the created object URL
-                                 currentListItem.ondblclick = () => openPreviewModal(previewEl);
-                             }
+                    receivedFiles.push({ blob: finalBlob, name: currentFileMeta.name, type: currentFileMeta.type, path: currentFileMeta.path });
+                    if (currentListItem) {
+                        currentListItem.classList.add('ready');
+                        const downloadBtnEl = currentListItem.querySelector('.download-btn');
+                        const fileSizeSpan = currentListItem.querySelector('.file-size');
+                        if (downloadBtnEl) {
+                            const objectURL = URL.createObjectURL(finalBlob);
+                            objectUrls.push(objectURL);
+                            downloadBtnEl.href = objectURL;
+                            downloadBtnEl.classList.remove('hidden');
                         }
-
-
-                         // --- Move to next file or finish ---
-                         receiveBuffer = []; // Clear buffer for the next file
-                         currentReceivingFileIndex++;
-                         currentFileReceivedSize = 0; // Reset size for the next file
-
-                         if (currentReceivingFileIndex >= filesMetadata.length) {
-                             // All files received
-                             const totalSize = filesMetadata.reduce((s, m) => s + m.size, 0);
-                             updateReceiveProgress(totalSize, 'All files received successfully!', 'success');
-                             console.log("Receiver: All files processed.");
-                             stopSpeedAndETRCalc(); // Stop speed calculation
-                             downloadAllBtn.disabled = false; // Enable download buttons
-                             downloadZipBtn.disabled = false;
-                             // Add history entry for successful reception
-                             addHistoryEntry(filesMetadata.map(f => f.name).join(', '), totalSize, true);
-                         }
-
-                     }).catch(hashError => {
-                          console.error(`Error hashing received file ${currentFileMeta.name}:`, hashError);
-                          if (hashStatusElement) {
-                             hashStatusElement.textContent = 'Hash Error';
-                             hashStatusElement.className = 'file-hash-status invalid';
-                         }
-                         // Decide how to handle hash errors - potentially still add file but mark as failed verification?
-                         // For now, we proceed to the next file even if hashing fails locally.
-                          receiveBuffer = [];
-                          currentReceivingFileIndex++;
-                          currentFileReceivedSize = 0;
-                           if (currentReceivingFileIndex >= filesMetadata.length) { /* handle completion as above */ }
-                     });
+                        if (fileSizeSpan) fileSizeSpan.textContent = formatBytes(finalBlob.size);
+                        if (currentFileMeta.type.startsWith('image/') || currentFileMeta.type.startsWith('video/')) {
+                            const previewEl = currentFileMeta.type.startsWith('image/') ? new Image() : document.createElement('video');
+                            if (downloadBtnEl) previewEl.src = downloadBtnEl.href; // Check if downloadBtnEl exists
+                            currentListItem.ondblclick = () => openPreviewModal(previewEl);
+                        }
+                    }
+                    receiveBuffer = [];
+                    currentReceivingFileIndex++;
+                    currentFileReceivedSize = 0;
+                    if (currentReceivingFileIndex >= filesMetadata.length) {
+                        const totalSize = filesMetadata.reduce((s, m) => s + m.size, 0);
+                        updateReceiveProgressUI(totalSize, 'All files received!', 'success');
+                        showToast('All files received successfully!', 'success');
+                        stopSpeedAndETRCalc();
+                        downloadAllBtn.disabled = false;
+                        downloadZipBtn.disabled = false;
+                        addHistoryEntry(filesMetadata.map(f => f.name).join(', '), totalSize, true, false, 'file');
+                        connectionInProgress = false; // Transfer complete
+                    }
                 }
-
             } catch (e) {
                 console.error("Error processing received chunk:", e);
-                updateReceiveProgress(receivedSize, `Error receiving file chunk: ${e.message}`, 'error');
-                closePeerConnection(); // Critical error, stop transfer
+                updateReceiveProgressUI(receivedSize, `Error receiving file: ${e.message}`, 'error');
+                showToast(`Error receiving file chunk: ${e.message}`, 'error');
+                closePeerConnection();
             }
-        }
-        // --- JSON Control Messages ---
-        else if (typeof event.data === 'string') {
+        } else if (typeof event.data === 'string') { // Control Messages
             try {
                 const message = JSON.parse(event.data);
                 console.log("Control Message Received:", message);
 
                 switch (message.type) {
                     case 'metadata':
-                        if (isSender) return; // Sender shouldn't receive metadata
-
+                        if (isSenderRole) return; // Sender shouldn't receive own metadata
                         filesMetadata = message.payload;
-                        if (!Array.isArray(filesMetadata)) {
-                            throw new Error("Invalid metadata format received.");
-                        }
-                        isPasswordRequiredBySender = message.passwordRequired || false; // Check password flag
+                        if (!Array.isArray(filesMetadata)) throw new Error("Invalid metadata.");
+                        isPasswordRequiredBySender = message.passwordRequired || false;
+                        console.log('Receiver: Metadata for', filesMetadata.length, 'files. Password Req:', isPasswordRequiredBySender);
+                        receivedSize = 0; currentReceivingFileIndex = 0; currentFileReceivedSize = 0; receivedFiles = []; revokeObjectUrls();
+                        receivedFilesList.innerHTML = '';
+                        // Only show received files section if it's not already part of a reset UI state
+                        if (connectionInProgress) receivedFilesSection.classList.remove('hidden');
+                        downloadAllBtn.disabled = true; downloadZipBtn.disabled = true;
+                        filesMetadata.forEach(meta => addReceivedFileToList(null, meta.name, meta.type, meta.path, meta.hash));
 
-                        console.log('Receiver: Received metadata for', filesMetadata.length, 'files. Password Required:', isPasswordRequiredBySender);
-
-                        // Reset receiver state for new transfer
-                        receivedSize = 0;
-                        currentReceivingFileIndex = 0;
-                        currentFileReceivedSize = 0;
-                        receivedFiles = [];
-                        revokeObjectUrls();
-                        receivedFilesList.innerHTML = ''; // Clear old list
-                        receivedFilesSection.classList.add('hidden');
-                        downloadAllBtn.disabled = true;
-                        downloadZipBtn.disabled = true;
-
-
-                        // Populate the received files list structure (without blobs yet)
-                        filesMetadata.forEach(meta => {
-                            addReceivedFileToList(null, meta.name, meta.type, meta.path, meta.hash);
-                        });
-
-                        // Handle password requirement
-                        if (isPasswordRequiredBySender && cryptoAvailable) { // Only require password if crypto is available
-                            passwordSectionReceiver.classList.remove('hidden'); // Show password input
-                            updateReceiveProgress(0, 'Password required by sender. Please enter it to proceed.', 'warning');
-                             passwordInputReceiver.focus(); // Focus input field
+                        if (isPasswordRequiredBySender && cryptoAvailable) {
+                            passwordSectionReceiver.classList.remove('hidden');
+                            receiveTabState.isPasswordSectionReceiverVisible = true; // Update state
+                            updateReceiveProgressUI(0, 'Password required by sender.', 'warning');
+                            passwordInputReceiver.focus();
                         } else if (isPasswordRequiredBySender && !cryptoAvailable) {
-                             updateReceiveProgress(0, 'Sender requires password, but verification is disabled (insecure context). Cannot proceed.', 'error');
-                             // Optionally send a message back? Or just close.
-                             sendControlMessage({ type: 'error', reason: 'password_unsupported_context' });
-                             setTimeout(closePeerConnection, 1000);
+                            updateReceiveProgressUI(0, 'Password required, but verification disabled (insecure context).', 'error');
+                            showToast('Cannot verify password due to insecure context.', 'error');
+                            sendControlMessage({ type: 'error', reason: 'password_unsupported_context' });
+                            setTimeout(closePeerConnection, 1000);
                         } else {
-                             // No password required, tell sender we're ready
-                             updateReceiveProgress(0, 'File details received. Ready to start download.', 'info');
-                             sendControlMessage({ type: 'ready_to_receive' });
-                             startSpeedAndETRCalc(); // Start speed calc immediately
+                            updateReceiveProgressUI(0, 'File details received. Ready for download.', 'info');
+                            sendControlMessage({ type: 'ready_to_receive' });
+                            startSpeedAndETRCalc();
                         }
                         break;
-
-                     case 'ready_to_receive': // Sender receives this after Receiver processes metadata (and potentially password)
-                        if (!isSender) return;
-                        console.log("Sender: Received 'ready_to_receive' signal from receiver.");
-                         // This is the signal to start the actual file transfer
-                         updateStatusMessage(sendStatusMessage, 'Receiver ready. Starting transfer...', 'info');
-                         startSpeedAndETRCalc(); // Start speed calculation now
-                         pauseResumeBtn.disabled = false; // Enable pause/resume
-                         cancelTransferBtn.disabled = false; // Ensure cancel is enabled
-                         sendFileChunk(); // Start sending the first chunk
-                         break;
-
-                    case 'password_check': // Sender receives hash from receiver
-                        if (!isSender) return;
-                        console.log("Sender: Received password check request.");
-
-                        if (!passwordHash) {
-                            console.warn("Received password check, but no password was set on sender side.");
-                            // Send back an error? Or ignore? Sending error is better.
-                            sendControlMessage({ type: 'error', reason: 'no_password_set' });
-                            return;
+                    case 'ready_to_receive':
+                        if (!isSenderRole) return;
+                        console.log("Sender: Received 'ready_to_receive' for files.");
+                        updateStatusDisplay(sendStatusMessage, 'Receiver ready. Starting file transfer...', 'info');
+                        startSpeedAndETRCalc();
+                        pauseResumeBtn.disabled = false;
+                        cancelTransferBtn.disabled = false;
+                        sendFileChunk();
+                        break;
+                    // ... other control messages (password_check, chat, pause/resume, cancel, error) same as before ...
+                    case 'password_check':
+                        if (!isSenderRole) return;
+                        if (!passwordHash) { // passwordHash is connection-specific
+                            sendControlMessage({ type: 'error', reason: 'no_password_set_sender' }); return;
                         }
-
-                        const receivedPassHash = message.hash;
-                        if (receivedPassHash === passwordHash) {
-                            console.log("Sender: Password matches!");
-                             // Don't start transfer here. Send confirmation and wait for 'ready_to_receive'.
-                             sendControlMessage({ type: 'password_correct' });
-                             updateStatusMessage(sendStatusMessage, 'Password correct. Waiting for receiver to start download...', 'info');
+                        const pHash = message.hash;
+                        if (pHash === passwordHash) {
+                            sendControlMessage({ type: 'password_correct' });
+                            updateStatusDisplay(sendStatusMessage, 'Password correct. Waiting for receiver...', 'info');
                         } else {
-                            console.error("Sender: Password mismatch!");
                             sendControlMessage({ type: 'password_incorrect' });
-                            updateStatusMessage(sendStatusMessage, 'Password incorrect. Closing connection.', 'error');
-                            // Give receiver time to see message before closing
+                            updateStatusDisplay(sendStatusMessage, 'Password incorrect. Closing.', 'error');
+                            showToast('Password incorrect on receiver side.', 'error');
+                            setTimeout(closePeerConnection, 1000);
+                        }
+                        break;
+                    case 'password_correct':
+                        if (isSenderRole) return;
+                        passwordSectionReceiver.classList.add('hidden');
+                        receiveTabState.isPasswordSectionReceiverVisible = false; // Update state
+                        updateReceiveProgressUI(0, 'Password correct. Ready for download.', 'success');
+                        showToast('Password verified!', 'success');
+                        sendControlMessage({ type: 'ready_to_receive' });
+                        startSpeedAndETRCalc();
+                        break;
+                    case 'password_incorrect':
+                        if (isSenderRole) return;
+                        updateStatusDisplay(receiveStatusMessage, 'Password incorrect. Connection closed by sender.', 'error');
+                        showToast('Password incorrect. Please try again or ask sender.', 'error');
+                        passwordInputReceiver.value = ''; receiveTabState.passwordInputReceiverValue = ''; // Update state
+                        verifyPasswordBtn.disabled = false;
+                        verifyPasswordBtn.innerHTML = '<i class="fas fa-check"></i> Verify';
+                        break;
+                    case 'chat':
+                        const chatCtx = getCurrentChatContext();
+                        if (message.text && chatCtx.messagesUl) {
+                            displayChatMessageInternal(message.text, false, chatCtx.messagesUl);
+                            // Also save to the correct tab's chat state if connection is active
+                            if (connectionInProgress) {
+                                const targetState = isSenderRole ? receiveTabState : sendTabState; // Peer's state
+                                targetState.chatMessages.push({ text: message.text, isSent: false });
+                            }
+                        }
+                        break;
+                    case 'pause_request':
+                        if (isSenderRole) return;
+                        transferPaused = true;
+                        updateStatusDisplay(receiveStatusMessage, 'Transfer paused by sender.', 'warning');
+                        stopSpeedAndETRCalc();
+                        sendControlMessage({ type: 'pause_ack' });
+                        break;
+                    case 'pause_ack':
+                        if (!isSenderRole) return;
+                        updateStatusDisplay(sendStatusMessage, 'Transfer paused.', 'warning');
+                        pauseResumeBtn.innerHTML = '<i class="fas fa-play"></i> Resume';
+                        break;
+                    case 'resume_request':
+                        if (isSenderRole) return;
+                        transferPaused = false;
+                        updateStatusDisplay(receiveStatusMessage, 'Transfer resumed by sender.', 'info');
+                        startSpeedAndETRCalc();
+                        sendControlMessage({ type: 'resume_ack' });
+                        break;
+                    case 'resume_ack':
+                        if (!isSenderRole) return;
+                        transferPaused = false;
+                        updateStatusDisplay(sendStatusMessage, 'Transfer resumed.', 'info');
+                        pauseResumeBtn.innerHTML = '<i class="fas fa-pause"></i> Pause';
+                        startSpeedAndETRCalc();
+                        sendFileChunk();
+                        break;
+                    case 'cancel_transfer':
+                        const cancelMsg = 'Transfer cancelled by peer.';
+                        updateStatusDisplay(isSenderRole ? sendStatusMessage : receiveStatusMessage, cancelMsg, 'error');
+                        showToast(cancelMsg, 'error');
+                        if(connectionInProgress) {
+                            addHistoryEntry(
+                                isSenderRole ? sendTabState.filesToSend.map(f => f.file.name).join(', ') : filesMetadata?.map(f => f.name).join(', '),
+                                isSenderRole ? totalBytesSent : receivedSize,
+                                false, true, 'file' // true for cancelled
+                            );
+                        }
+                        closePeerConnection();
+                        break;
+                    case 'error':
+                        updateStatusDisplay(isSenderRole ? sendStatusMessage : receiveStatusMessage, `Error from peer: ${message.reason || 'Unknown'}`, 'error');
+                        showToast(`Peer error: ${message.reason || 'Unknown error'}`, 'error');
+                        if (message.reason === 'no_password_set_sender' || message.reason === 'password_unsupported_context') {
                             setTimeout(closePeerConnection, 1000);
                         }
                         break;
 
-                    case 'password_correct': // Receiver gets confirmation
-                         if (isSender) return;
-                         console.log("Receiver: Password verified by sender.");
-                         passwordSectionReceiver.classList.add('hidden'); // Hide password input
-                         updateReceiveProgress(0, 'Password correct. Ready to start download.', 'success');
-                         sendControlMessage({ type: 'ready_to_receive' }); // Now tell sender we are ready
-                         startSpeedAndETRCalc(); // Start speed calc
-                         break;
-
-
-                    case 'password_incorrect': // Receiver gets rejection
-                        if (isSender) return;
-                        console.error("Receiver: Password incorrect according to sender.");
-                        updateStatusMessage(receiveStatusMessage, 'Password incorrect. Connection closed by sender.', 'error');
-                         passwordSectionReceiver.classList.remove('hidden'); // Show section again for retry? Or just close.
-                         passwordInputReceiver.value = ''; // Clear wrong password
-                         verifyPasswordBtn.disabled = false; // Re-enable verify button (might be closed soon though)
-                         verifyPasswordBtn.innerHTML = '<i class="fas fa-check"></i> Verify';
-                        // Don't close immediately, let user see the message. Sender will likely close.
-                        // closePeerConnection();
-                        break;
-
-                    case 'chat':
-                        if (message.text) {
-                             displayChatMessage(message.text, false); // false = received message
-                        }
-                        break;
-
-                    case 'pause_request':
-                        if (isSender) return; // Only receiver handles pause requests
-                        transferPaused = true;
-                        updateStatusMessage(receiveStatusMessage, 'Transfer paused by sender.', 'warning');
-                        stopSpeedAndETRCalc();
-                        sendControlMessage({ type: 'pause_ack' }); // Acknowledge pause
-                        break;
-
-                    case 'pause_ack':
-                        if (!isSender) return; // Only sender handles pause acknowledgments
-                        updateStatusMessage(sendStatusMessage, 'Transfer paused.', 'warning');
-                        pauseResumeBtn.innerHTML = '<i class="fas fa-play"></i> Resume';
-                        // Speed calc should have been stopped when request was sent
-                        break;
-
-                    case 'resume_request':
-                        if (isSender) return; // Only receiver handles resume requests
-                        transferPaused = false;
-                        updateStatusMessage(receiveStatusMessage, 'Transfer resumed by sender.', 'info');
-                        startSpeedAndETRCalc();
-                        sendControlMessage({ type: 'resume_ack' }); // Acknowledge resume
-                        // Receiver doesn't need to trigger anything else, chunks will just start arriving again
-                        break;
-
-                    case 'resume_ack':
-                        if (!isSender) return; // Only sender handles resume acknowledgments
-                        transferPaused = false; // Ensure state is correct
-                        updateStatusMessage(sendStatusMessage, 'Transfer resumed.', 'info');
-                        pauseResumeBtn.innerHTML = '<i class="fas fa-pause"></i> Pause';
-                        startSpeedAndETRCalc();
-                        sendFileChunk(); // Resume sending chunks
-                        break;
-
-                    case 'cancel_transfer':
-                        console.log("Received cancellation request from peer.");
-                        const cancelMsg = 'Transfer cancelled by peer.';
-                        updateStatusMessage(isSender ? sendStatusMessage : receiveStatusMessage, cancelMsg, 'error');
-                         addHistoryEntry(
-                             isSender ? filesToSend.map(f => f.file.name).join(', ') : filesMetadata?.map(f => f.name).join(', '),
-                             isSender ? totalBytesSent : receivedSize,
-                             false, // Not successful
-                             true   // Was cancelled
-                         );
-                        closePeerConnection(); // Close the connection immediately
-                        break;
-
-                     case 'error': // Generic error message from peer
-                         console.error("Received error message from peer:", message.reason || 'Unknown error');
-                         updateStatusMessage(
-                             isSender ? sendStatusMessage : receiveStatusMessage,
-                             `Error from peer: ${message.reason || 'Unknown error'}`,
-                             'error'
-                         );
-                          // Optionally close connection based on error type
-                          if (message.reason === 'no_password_set' || message.reason === 'password_unsupported_context') {
-                              setTimeout(closePeerConnection, 1000);
-                          }
-                         break;
-
-
-                    default:
-                        console.warn("Unknown control message type received:", message.type);
+                    default: console.warn("Unknown control message:", message.type);
                 }
             } catch (error) {
                 console.error("Error parsing control message:", error, "Data:", event.data);
-                // Optionally send an error back or close connection if parsing fails often
+                showToast('Received invalid message from peer.', 'error');
             }
         }
     }
 
     // --- Data Transfer Logic ---
-    async function sendMetadata() {
-        if (filesToSend.length === 0 || !dataChannel || dataChannel.readyState !== 'open') {
-            console.error("Cannot send metadata: No files selected or data channel not open.");
-            updateSendProgress(0, 'Error: Cannot send file details.', 'error');
-            closePeerConnection();
-            return;
+    async function sendMetadata() { // Uses sendTabState for files
+        // ... (same as before, but uses sendTabState.filesToSend and sendTabState.totalBytesToSend) ...
+        if (sendTabState.filesToSend.length === 0 || !dataChannel || dataChannel.readyState !== 'open') {
+            updateSendProgressUI(0, 'Error: Cannot send file details.', 'error');
+            showToast('Failed to send file details.', 'error');
+            closePeerConnection(); return;
         }
-
-        updateStatusMessage(sendStatusMessage, 'Calculating file hashes...', 'info');
-        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Hashing...'; // Indicate hashing process
-
+        updateStatusDisplay(sendStatusMessage, 'Calculating file hashes...', 'info');
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Hashing...';
         try {
-            const metadataPromises = filesToSend.map(async (item) => {
-                 // Calculate hash only if crypto is available
-                 const hash = cryptoAvailable ? await calculateHash(item.file) : null;
-                 return {
-                     name: item.file.name,
-                     type: item.file.type || 'application/octet-stream', // Default MIME type
-                     size: item.file.size,
-                     path: item.path, // Include relative path
-                     hash: hash // Include hash (will be null if crypto not available or hashing failed)
-                 };
-            });
-
-            const metadata = await Promise.all(metadataPromises);
-
-            console.log('Sender: Sending metadata with hashes:', metadata);
-
-             // Include the password requirement flag in the metadata message
-            const metadataMessage = {
-                type: 'metadata',
-                payload: metadata,
-                passwordRequired: !!passwordHash // True if passwordHash is not null/empty
-            };
-
-            dataChannel.send(JSON.stringify(metadataMessage));
-
-            // Update UI after sending metadata (don't start sending chunks yet)
-             generateBtn.innerHTML = '<i class="fas fa-check"></i> Code Generated'; // Reset button icon
-
-            if (!passwordHash) {
-                // If no password, wait for 'ready_to_receive' which receiver should send immediately
-                updateSendProgress(0, 'File details sent. Waiting for receiver readiness...', 'info');
-            } else {
-                // If password was set, wait for receiver to send 'password_check', then sender responds,
-                // then receiver sends 'ready_to_receive'
-                updateSendProgress(0, 'File details sent. Waiting for password verification by receiver...', 'info');
-            }
-
+            const metadataPayload = await Promise.all(sendTabState.filesToSend.map(async (item) => ({
+                name: item.file.name, type: item.file.type || 'application/octet-stream',
+                size: item.file.size, path: item.path,
+                hash: cryptoAvailable ? await calculateHash(item.file) : null
+            })));
+            console.log('Sender: Sending file metadata:', metadataPayload);
+            dataChannel.send(JSON.stringify({ type: 'metadata', payload: metadataPayload, passwordRequired: !!passwordHash })); // passwordHash is connection-specific
+            // Don't update generateBtn here as it might be hidden if user switched tabs and came back
+            // The UI state for button is managed by sendTabState and restoreTabState
+            const waitMsg = passwordHash ? 'Waiting for password verification...' : 'Waiting for receiver readiness...';
+            updateSendProgressUI(0, `File details sent. ${waitMsg}`, 'info');
         } catch (error) {
-            console.error("Error calculating hashes or sending metadata:", error);
-            updateSendProgress(0, 'Error preparing file details.', 'error');
-            generateBtn.innerHTML = '<i class="fas fa-share-alt"></i> Generate Share Code'; // Reset button
+            console.error("Error in sendMetadata:", error);
+            updateSendProgressUI(0, 'Error preparing file details.', 'error');
+            showToast(`Error preparing files: ${error.message}`, 'error');
+            // Reset relevant parts of sendTabState if metadata fails
+            sendTabState.isGenerateBtnDisabled = sendTabState.filesToSend.length === 0;
+            generateBtn.disabled = sendTabState.isGenerateBtnDisabled;
+            generateBtn.innerHTML = '<i class="fas fa-share-alt"></i> Generate Share Code';
             closePeerConnection();
         }
     }
 
-    function sendFileChunk() {
-        if (transferPaused) {
-            console.log("Send chunk paused.");
-            return;
-        }
-        if (currentFileIndex >= filesToSend.length) {
-            // This case should be handled by updateSendProgress completion logic, but good to double-check
-            console.log("All files sent. No more chunks to send.");
-             // updateSendProgress might have already handled completion / history / UI updates.
-            return;
-        }
-         if (!dataChannel || dataChannel.readyState !== 'open') {
-            console.error("Cannot send chunk: Data channel closed or not open.");
-            updateSendProgress(totalBytesSent, 'Error: Connection lost during transfer.', 'error');
+    function sendFileChunk() { // Uses sendTabState.filesToSend
+        // ... (same as before, uses showToast, addHistoryEntry) ...
+        if (transferPaused) { console.log("Send chunk paused."); return; }
+        if (currentFileIndex >= sendTabState.filesToSend.length) { console.log("All files sent."); return; } // Check against state
+        if (!dataChannel || dataChannel.readyState !== 'open') {
+            updateSendProgressUI(totalBytesSent, 'Error: Connection lost.', 'error');
+            showToast('Connection lost during transfer.', 'error');
             stopSpeedAndETRCalc();
-             addHistoryEntry(filesToSend.map(f => f.file.name).join(', '), totalBytesSent, false, false);
-            return; // Stop sending
+            if(connectionInProgress) addHistoryEntry(sendTabState.filesToSend.map(f => f.file.name).join(', '), totalBytesSent, false, false, 'file');
+            return;
         }
-
-        const currentItem = filesToSend[currentFileIndex];
+        const currentItem = sendTabState.filesToSend[currentFileIndex]; // Use state
         const file = currentItem.file;
-
-        // Highlight the currently sending file in the UI
         const listItem = selectedFilesList.querySelector(`li[data-index="${currentFileIndex}"]`);
         if (listItem && !listItem.classList.contains('transferring')) {
-            selectedFilesList.querySelectorAll('.transferring').forEach(el => el.classList.remove('transferring')); // Clear previous
+            selectedFilesList.querySelectorAll('.transferring').forEach(el => el.classList.remove('transferring'));
             listItem.classList.add('transferring');
         }
-
-        // Check buffer pressure before reading/sending more data
         if (dataChannel.bufferedAmount > MAX_BUFFERED_AMOUNT) {
-            // console.log(`Buffer full (${dataChannel.bufferedAmount}), waiting...`);
-            // Wait for buffer to drain - use onbufferedamountlow event or simple timeout
-             setTimeout(sendFileChunk, 100); // Check again in 100ms
-            return;
+            setTimeout(sendFileChunk, 100); return;
         }
-
         const slice = file.slice(currentFileOffset, currentFileOffset + CHUNK_SIZE);
         const reader = new FileReader();
-
         reader.onload = (e) => {
-             if (!e.target?.result) {
-                 console.error("File reader error: result is null.");
-                 updateSendProgress(totalBytesSent, 'Error reading file chunk.', 'error');
-                 closePeerConnection();
-                 return;
-             }
-
-             try {
-                 // Double-check channel state and pause flag right before sending
-                 if (dataChannel.readyState === 'open' && !transferPaused) {
-                     dataChannel.send(e.target.result); // Send ArrayBuffer chunk
-                     const chunkSize = e.target.result.byteLength;
-                     currentFileOffset += chunkSize;
-                     totalBytesSent += chunkSize;
-
-                     updateSendProgress(totalBytesSent); // Update overall progress UI
-
-                     // Check if current file is complete
-                     if (currentFileOffset >= file.size) {
-                         console.log(`Sent File: ${file.name} (${currentItem.path})`);
-                         if (listItem) listItem.classList.remove('transferring'); // Unhighlight completed file
-                         currentFileIndex++; // Move to the next file
-                         currentFileOffset = 0; // Reset offset for the new file
-                     }
-
-                     // Schedule the next chunk if transfer is not paused/completed
-                     if (currentFileIndex < filesToSend.length && !transferPaused) {
-                        // Use requestAnimationFrame for smoother UI responsiveness, though setTimeout works too
-                         requestAnimationFrame(sendFileChunk);
-                         // setTimeout(sendFileChunk, 0); // Yield to event loop
-                     } else if (currentFileIndex >= filesToSend.length) {
-                         // Final file completed - progress update should handle this.
-                         console.log("All files sent successfully schedule check.");
-                     }
-                 } else if (transferPaused) {
-                     console.log("Transfer paused during file read/send operation.");
-                 } else {
-                     console.error("Data channel closed during file read/send operation.");
-                     updateSendProgress(totalBytesSent, 'Error: Data channel closed.', 'error');
-                     stopSpeedAndETRCalc();
-                 }
-             } catch (err) {
-                 console.error("Error sending data channel chunk:", err);
-                 updateSendProgress(totalBytesSent, 'Error sending file chunk.', 'error');
-                 closePeerConnection(); // Critical error
-             }
+            if (!e.target?.result) {
+                updateSendProgressUI(totalBytesSent, 'Error reading file chunk.', 'error');
+                showToast('Error reading file.', 'error');
+                closePeerConnection(); return;
+            }
+            try {
+                if (dataChannel.readyState === 'open' && !transferPaused) {
+                    dataChannel.send(e.target.result);
+                    const chunkSize = e.target.result.byteLength;
+                    currentFileOffset += chunkSize;
+                    totalBytesSent += chunkSize;
+                    updateSendProgressUI(totalBytesSent);
+                    if (currentFileOffset >= file.size) {
+                        console.log(`Sent File: ${file.name}`);
+                        if (listItem) listItem.classList.remove('transferring');
+                        currentFileIndex++;
+                        currentFileOffset = 0;
+                    }
+                    if (currentFileIndex < sendTabState.filesToSend.length && !transferPaused) requestAnimationFrame(sendFileChunk);
+                    else if (currentFileIndex >= sendTabState.filesToSend.length) {
+                        console.log("All file chunks scheduled for sending.");
+                        // updateSendProgressUI will handle completion status and history
+                    }
+                } else if (transferPaused) console.log("Transfer paused during send op.");
+                else {
+                     updateSendProgressUI(totalBytesSent, 'Error: Data channel closed.', 'error');
+                     showToast('Data channel closed unexpectedly.', 'error');
+                }
+            } catch (err) {
+                console.error("Error sending chunk:", err);
+                updateSendProgressUI(totalBytesSent, 'Error sending file chunk.', 'error');
+                showToast(`Error sending data: ${err.message}`, 'error');
+                closePeerConnection();
+            }
         };
-
         reader.onerror = (err) => {
             console.error("FileReader error:", err);
-            updateSendProgress(totalBytesSent, 'Error reading file.', 'error');
-            closePeerConnection(); // Stop transfer on read error
+            updateSendProgressUI(totalBytesSent, 'Error reading file.', 'error');
+            showToast(`File read error: ${err.message}`, 'error');
+            closePeerConnection();
         };
-
-        reader.readAsArrayBuffer(slice); // Read the chunk as ArrayBuffer
+        reader.readAsArrayBuffer(slice);
     }
-
 
     // --- Received File Handling ---
     function addReceivedFileToList(blob, name, type, path, hash) {
+        // ... (same as before) ...
         if (!receivedFilesList || !receivedFilesSection) return;
-
-        receivedFilesSection.classList.remove('hidden'); // Ensure section is visible
+        // Only show if connection is active, otherwise it might flash during tab state restoration
+        if(connectionInProgress) receivedFilesSection.classList.remove('hidden');
 
         const li = document.createElement('li');
-        // Start without 'ready' class, add it when blob is fully processed and hash checked
         li.className = 'received-file-item';
-        li.dataset.filename = name; // Store identifiers for potential later updates
+        li.dataset.filename = name;
         li.dataset.filepath = path;
 
-        const objectURL = blob ? URL.createObjectURL(blob) : '#'; // Create URL only if blob exists
-         if (blob) objectUrls.push(objectURL); // Track URL for revocation
+        const isReady = !!blob;
+        const objectURL = blob ? URL.createObjectURL(blob) : '#';
+        if (blob) objectUrls.push(objectURL);
 
 
-        // Determine initial state for UI elements
-        const isReady = !!blob; // File is ready if blob exists
         const initialSizeText = isReady ? formatBytes(blob.size) : 'Pending...';
         const downloadButtonClass = isReady ? '' : 'hidden';
-
-        // Determine initial hash status text and class
-        let initialHashText = 'No Hash';
-        let initialHashClass = 'pending'; // Default class if no hash info yet
-         if (cryptoAvailable) {
-             if (hash) { // If a hash was provided in metadata
-                 initialHashText = isReady ? 'Verifying...' : 'Pending Hash';
-                 initialHashClass = isReady ? 'checking' : 'pending';
-             } else {
-                  initialHashText = 'No Hash Sent'; // Sender didn't provide hash
-                 initialHashClass = 'pending';
-             }
-         } else {
-             initialHashText = 'No Verify'; // Crypto unavailable
-             initialHashClass = 'pending';
-         }
+        let initialHashText = 'No Hash Sent', initialHashClass = 'no-hash';
+        if (cryptoAvailable) {
+            if (hash) { initialHashText = isReady ? 'Verifying...' : 'Pending Hash'; initialHashClass = isReady ? 'checking' : 'pending'; }
+        } else { initialHashText = 'No Verify'; initialHashClass = 'no-verify'; }
 
         const filePathDisplay = path !== name ? `<span class="file-path" title="${path}">${path}</span>` : '';
         const hashDisplay = `<span class="file-hash-status ${initialHashClass}">${initialHashText}</span>`;
-         const downloadBtnHTML = `<a href="${objectURL}" download="${name}" class="download-btn ${downloadButtonClass}"><i class="fas fa-download"></i> Download</a>`;
+        const downloadBtnHTML = `<a href="${objectURL}" download="${name}" class="download-btn ${downloadButtonClass}" role="button" aria-label="Download ${name}"><i class="fas fa-download"></i> Download</a>`;
 
         li.innerHTML = `
             <i class="fas ${getFileIconClass(type)} file-icon"></i>
@@ -1929,439 +1754,257 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${filePathDisplay}
                 <span class="file-size">${initialSizeText}</span>
             </div>
-            <div class="file-status-indicator"> <!-- Group hash and download -->
+            <div class="file-status-indicator">
                 ${hashDisplay}
                 ${downloadBtnHTML}
             </div>`;
-
-        // Append to list
         receivedFilesList.appendChild(li);
-
-        // Note: Actual updates to 'ready' class, download button visibility, size, and hash status
-        // happen inside handleDataChannelMessage when the blob is fully received and processed.
-        // This function primarily sets up the list item structure.
     }
-
 
     // --- Control Message Sender Utility ---
     function sendControlMessage(message) {
+        // ... (same as before, uses showToast) ...
         if (dataChannel && dataChannel.readyState === 'open') {
-            try {
-                dataChannel.send(JSON.stringify(message));
-                console.log("Control Message Sent:", message);
-            } catch (e) {
-                console.error("Error sending control message:", e, "Message:", message);
-                // Handle potential errors (e.g., message too large, though unlikely for control messages)
+            try { dataChannel.send(JSON.stringify(message)); console.log("Ctrl Msg Sent:", message); }
+            catch (e) {
+                console.error("Error sending ctrl msg:", e, message);
+                showToast('Failed to send control message.', 'error');
             }
-        } else {
-            console.warn("Cannot send control message: Data channel not open.", "Message:", message);
-        }
+        } else console.warn("Ctrl msg not sent: DC not open.", message);
     }
-
 
     // --- Pause/Resume/Cancel Logic ---
-    if (pauseResumeBtn) {
-        pauseResumeBtn.onclick = () => {
-             if (!peerConnection || !dataChannel || dataChannel.readyState !== 'open') {
-                 console.warn("Cannot pause/resume: Connection not active.");
-                 return;
-             }
-
-            if (transferPaused) { // Currently paused, want to resume
-                 transferPaused = false; // Optimistically update state
-                 sendControlMessage({ type: 'resume_request' });
-                 updateStatusMessage(isSender ? sendStatusMessage : receiveStatusMessage, 'Requesting resume...', 'info');
-                 // UI update (button text, speed calc) will happen on receiving 'resume_ack' or if request fails
-                 pauseResumeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resuming'; // Indicate pending state
-            } else { // Currently running, want to pause
-                transferPaused = true; // Optimistically update state
-                sendControlMessage({ type: 'pause_request' });
-                updateStatusMessage(isSender ? sendStatusMessage : receiveStatusMessage, 'Requesting pause...', 'info');
-                 stopSpeedAndETRCalc(); // Stop calculation immediately on requesting pause
-                 pauseResumeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Pausing'; // Indicate pending state
-            }
-        };
-    }
-
-    if (cancelTransferBtn) {
-        cancelTransferBtn.onclick = () => {
-             if (!peerConnection) {
-                 console.warn("Cannot cancel: No active connection.");
-                 return;
-             }
-
-             console.log("User initiated transfer cancellation.");
-             sendControlMessage({ type: 'cancel_transfer' }); // Inform peer
-             const cancelMsg = 'Transfer cancelled by user.';
-             updateStatusMessage(isSender ? sendStatusMessage : receiveStatusMessage, cancelMsg, 'error');
-             addHistoryEntry(
-                 isSender ? filesToSend.map(f => f.file.name).join(', ') : filesMetadata?.map(f => f.name).join(', '),
-                 isSender ? totalBytesSent : receivedSize,
-                 false, // Not successful
-                 true   // Was cancelled
-             );
-             closePeerConnection(); // Close connection immediately
-             pauseResumeBtn.disabled = true;
-             cancelTransferBtn.disabled = true;
-        };
-    }
-
-
-    // --- Chat Logic ---
-    function enableChat(enable) {
-        const currentChatInput = isSender ? chatInputSender : chatInputReceiver;
-        const currentChatSendBtn = isSender ? chatSendBtnSender : chatSendBtnReceiver;
-        const currentChatPanel = isSender ? chatPanelSender : chatPanelReceiver;
-
-        if (!currentChatInput || !currentChatSendBtn || !currentChatPanel) return; // Elements might not exist if panel is hidden
-
-        currentChatInput.disabled = !enable;
-        currentChatSendBtn.disabled = !enable;
-        if (enable) {
-             currentChatPanel.classList.remove('hidden');
-             currentChatInput.placeholder = "Type message...";
-        } else {
-             // currentChatPanel.classList.add('hidden'); // Optionally hide panel when disabled
-             currentChatInput.placeholder = "Chat unavailable";
+    if (pauseResumeBtn) pauseResumeBtn.onclick = () => {
+        // ... (same as before, uses showToast) ...
+        if (!peerConnection || !dataChannel || dataChannel.readyState !== 'open') {
+            showToast("Cannot pause/resume: Connection inactive.", "warning"); return;
         }
+        if (transferPaused) {
+            sendControlMessage({ type: 'resume_request' });
+            updateStatusDisplay(sendStatusMessage, 'Requesting resume...', 'info');
+            pauseResumeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resuming';
+        } else {
+            sendControlMessage({ type: 'pause_request' });
+            updateStatusDisplay(sendStatusMessage, 'Requesting pause...', 'info');
+            stopSpeedAndETRCalc();
+            pauseResumeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Pausing';
+        }
+    };
+    if (cancelTransferBtn) cancelTransferBtn.onclick = () => {
+        // ... (same as before, uses showToast, addHistoryEntry) ...
+        if (!peerConnection) { showToast("Cannot cancel: No active connection.", "warning"); return; }
+        console.log(`User initiated file transfer cancellation.`);
+        sendControlMessage({ type: 'cancel_transfer', mode: 'file' }); // Specify mode
+        const cancelMsg = `File transfer cancelled by user.`;
+        updateStatusDisplay(isSenderRole ? sendStatusMessage : receiveStatusMessage, cancelMsg, 'error');
+        showToast(cancelMsg, 'info');
+        if(connectionInProgress) { // Only add history if a transfer was being attempted
+            addHistoryEntry(
+                isSenderRole ? sendTabState.filesToSend.map(f => f.file.name).join(', ') : filesMetadata?.map(f => f.name).join(', '),
+                isSenderRole ? totalBytesSent : receivedSize,
+                false, true, 'file' // true for cancelled
+            );
+        }
+        closePeerConnection();
+        pauseResumeBtn.disabled = true;
+        cancelTransferBtn.disabled = true;
+    };
+
+    // --- Chat Logic (Contextual) ---
+    function getCurrentChatContext() {
+        // ... (same as before) ...
+        if (activeTab === 'send') return { messagesUl: chatMessagesSender, input: chatInputSender, sendBtn: chatSendBtnSender, panel: chatPanelSender, stateMessages: sendTabState.chatMessages };
+        if (activeTab === 'receive') return { messagesUl: chatMessagesReceiver, input: chatInputReceiver, sendBtn: chatSendBtnReceiver, panel: chatPanelReceiver, stateMessages: receiveTabState.chatMessages };
+        return {};
+    }
+    function enableChatForCurrentTab(enable) {
+        const chatCtx = getCurrentChatContext();
+        if (chatCtx.input) chatCtx.input.disabled = !enable;
+        if (chatCtx.sendBtn) chatCtx.sendBtn.disabled = !enable;
+        // Show panel only if enabled AND there are messages OR if connection is active
+        const shouldShowPanel = enable || (chatCtx.stateMessages && chatCtx.stateMessages.length > 0);
+        if (chatCtx.panel) chatCtx.panel.classList.toggle('hidden', !shouldShowPanel);
+        if (chatCtx.input) chatCtx.input.placeholder = enable ? "Type message..." : "Chat unavailable";
     }
 
-    function sendChatMessage() {
-        const currentChatInput = isSender ? chatInputSender : chatInputReceiver;
-        const text = currentChatInput.value.trim();
-
+    function sendChatMessageInternal() {
+        // ... (same as before, uses showToast, also saves to current tab's chat state) ...
+        const chatCtx = getCurrentChatContext();
+        if (!chatCtx.input) return;
+        const text = chatCtx.input.value.trim();
         if (text && dataChannel && dataChannel.readyState === 'open') {
             sendControlMessage({ type: 'chat', text: text });
-            displayChatMessage(text, true); // Display own message immediately (true = sent)
-            currentChatInput.value = ''; // Clear input field
-        } else if (!text) {
-             // Ignore empty messages
-        } else {
-            console.warn("Cannot send chat message: Data channel not open.");
-             // Optionally provide feedback to user (e.g., input border red)
-        }
+            displayChatMessageInternal(text, true, chatCtx.messagesUl);
+            chatCtx.stateMessages.push({ text: text, isSent: true }); // Save to state
+            chatCtx.input.value = '';
+        } else if (!text) { /* ignore */ }
+        else showToast("Chat not connected.", "warning");
     }
-
-    function displayChatMessage(text, isSent) {
-        const currentChatMessages = isSender ? chatMessagesSender : chatMessagesReceiver;
-        if (!currentChatMessages) return;
-
+    function displayChatMessageInternal(text, isSent, messagesUl) {
+        // ... (same as before) ...
+        if (!messagesUl) return;
         const li = document.createElement('li');
         li.classList.add('chat-message', isSent ? 'sent' : 'received');
-
         const span = document.createElement('span');
-        // Basic sanitization (replace < and > to prevent HTML injection)
-        // For more robust sanitization, consider a library like DOMPurify if handling untrusted input
-        span.textContent = text; // Using textContent automatically escapes HTML
-
+        span.textContent = text;
         li.appendChild(span);
-        currentChatMessages.appendChild(li);
-
-        // Scroll to the bottom of the chat window
-        currentChatMessages.scrollTop = currentChatMessages.scrollHeight;
+        messagesUl.appendChild(li);
+        messagesUl.scrollTop = messagesUl.scrollHeight;
     }
-
-    // Attach chat send event listeners
-    if (chatSendBtnSender) chatSendBtnSender.onclick = sendChatMessage;
-    if (chatInputSender) chatInputSender.onkeypress = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }};
-    if (chatSendBtnReceiver) chatSendBtnReceiver.onclick = sendChatMessage;
-    if (chatInputReceiver) chatInputReceiver.onkeypress = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }};
-
+    [chatSendBtnSender, chatSendBtnReceiver].forEach(btn => { if (btn) btn.onclick = sendChatMessageInternal; });
+    [chatInputSender, chatInputReceiver].forEach(input => {
+        if (input) input.onkeypress = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessageInternal(); }};
+    });
 
     // --- Download All & Zip Logic ---
-    if (downloadAllBtn) {
-        downloadAllBtn.onclick = () => {
-            if (receivedFiles.length === 0) {
-                 alert("No files have been received to download.");
-                 return;
-            }
-            console.log(`Starting Download All for ${receivedFiles.length} files...`);
-            downloadAllBtn.disabled = true;
-            downloadZipBtn.disabled = true; // Disable zip while multi-download is in progress
-            downloadAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
-
-            let downloadedCount = 0;
-            const totalFiles = receivedFiles.length;
-
-            // Download files sequentially with a small delay to avoid browser blocking popups/downloads
-            receivedFiles.forEach((fileData, index) => {
-                setTimeout(() => {
-                    const link = document.createElement('a');
-                    // Recreate URL just in case it was revoked elsewhere, though unlikely with current flow
-                    const url = URL.createObjectURL(fileData.blob);
-                    link.href = url;
-                    link.download = fileData.name; // Use the original filename
-
-                    document.body.appendChild(link); // Append link to trigger download
-                    try {
-                        link.click();
-                        console.log(`Initiated download for: ${fileData.name}`);
-                        downloadedCount++;
-                    } catch (e) {
-                        console.error(`Error initiating download for ${fileData.name}:`, e);
-                        // Optionally notify the user about the specific file failure
-                    } finally {
-                        document.body.removeChild(link); // Clean up the link element
-                        URL.revokeObjectURL(url); // Revoke the object URL after triggering download
-
-                        // Re-enable buttons after the last file attempt
-                        if (index === totalFiles - 1) {
-                             console.log("Finished Download All attempt.");
-                             downloadAllBtn.disabled = false;
-                             downloadZipBtn.disabled = false;
-                             downloadAllBtn.innerHTML = '<i class="fas fa-file-archive"></i> Download All';
-                        }
+    if (downloadAllBtn) downloadAllBtn.onclick = () => { /* ... same as before, uses showToast ... */
+        if (receivedFiles.length === 0) { showToast("No files to download.", "warning"); return; }
+        downloadAllBtn.disabled = true; downloadZipBtn.disabled = true;
+        downloadAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
+        let downloadedCount = 0;
+        receivedFiles.forEach((fileData, index) => {
+            setTimeout(() => {
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(fileData.blob);
+                link.href = url;
+                link.download = fileData.path || fileData.name;
+                document.body.appendChild(link);
+                try { link.click(); downloadedCount++; }
+                catch (e) { console.error(`Error downloading ${fileData.name}:`, e); showToast(`Failed to download ${fileData.name}`, 'error'); }
+                finally {
+                    document.body.removeChild(link); URL.revokeObjectURL(url);
+                    if (index === receivedFiles.length - 1) {
+                        downloadAllBtn.disabled = false; downloadZipBtn.disabled = false;
+                        downloadAllBtn.innerHTML = '<i class="fas fa-file-archive"></i> Download All';
+                        showToast(`${downloadedCount} files downloaded.`, 'success');
                     }
-                }, index * 300); // Stagger downloads by 300ms
+                }
+            }, index * 300);
+        });
+    };
+    if (downloadZipBtn) downloadZipBtn.onclick = () => { /* ... same as before, uses showToast ... */
+        if (receivedFiles.length === 0) { showToast("No files to zip.", "warning"); return; }
+        if (typeof JSZip === 'undefined') { showToast("JSZip library not loaded.", "error"); return; }
+        downloadAllBtn.disabled = true; downloadZipBtn.disabled = true;
+        downloadZipBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Zipping...';
+        updateStatusDisplay(receiveStatusMessage, `Zipping ${receivedFiles.length} file(s)...`, 'info');
+        const zip = new JSZip();
+        receivedFiles.forEach(fileData => zip.file(fileData.path || fileData.name, fileData.blob, { binary: true }));
+        zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } })
+            .then((content) => {
+                updateStatusDisplay(receiveStatusMessage, 'Zip created. Starting download...', 'success');
+                showToast('Zip file generated, download starting.', 'success');
+                const timestamp = new Date().toISOString().replace(/[:\-.]/g, '').slice(0, 15);
+                const zipFilename = `ShareWave_Files_${timestamp}.zip`;
+                const url = URL.createObjectURL(content);
+                const link = document.createElement('a');
+                link.href = url; link.download = zipFilename;
+                document.body.appendChild(link);
+                try { link.click(); } catch (e) { showToast("Failed to start zip download.", "error"); }
+                finally { document.body.removeChild(link); URL.revokeObjectURL(url); }
+            })
+            .catch(err => {
+                updateStatusDisplay(receiveStatusMessage, `Error creating zip: ${err.message}`, 'error');
+                showToast(`Zip creation failed: ${err.message}`, 'error');
+            })
+            .finally(() => {
+                downloadAllBtn.disabled = false; downloadZipBtn.disabled = false;
+                downloadZipBtn.innerHTML = '<i class="fas fa-file-zipper"></i> Download Zip';
             });
-        };
-    }
-
-    if (downloadZipBtn) {
-        downloadZipBtn.onclick = () => {
-             if (receivedFiles.length === 0) {
-                 alert("No files received to zip.");
-                 return;
-             }
-             if (typeof JSZip === 'undefined') {
-                 alert("JSZip library is not loaded. Cannot create zip file.");
-                 console.error("JSZip not found!");
-                 return;
-             }
-
-             console.log("Starting Zip Download preparation...");
-             downloadAllBtn.disabled = true; // Disable both buttons during zipping
-             downloadZipBtn.disabled = true;
-             downloadZipBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Zipping...';
-             updateStatusMessage(receiveStatusMessage, `Zipping ${receivedFiles.length} file(s)... this may take a moment.`, 'info');
-
-             const zip = new JSZip();
-
-             // Add files to the zip, respecting original paths
-             receivedFiles.forEach(fileData => {
-                 // Use the stored path. If path is just the filename, it goes in the root.
-                 // If path includes '/', JSZip creates folders automatically.
-                 const filePathInZip = fileData.path || fileData.name; // Fallback to name if path is somehow missing
-                 zip.file(filePathInZip, fileData.blob, { binary: true });
-                 console.log(`Added to zip: ${filePathInZip}`);
-             });
-
-             // Generate the zip file asynchronously
-             zip.generateAsync(
-                 {
-                     type: "blob",
-                     compression: "DEFLATE", // Standard zip compression
-                     compressionOptions: {
-                         level: 6 // Balance between speed and compression (1=fastest, 9=best)
-                     }
-                 },
-                 (metadata) => {
-                     // Optional: Update progress during zipping (can be slow for many/large files)
-                     // console.log("Zipping progress: " + metadata.percent.toFixed(0) + " %");
-                     // updateStatusMessage(receiveStatusMessage, `Zipping... ${metadata.percent.toFixed(0)}%`, 'info');
-                 }
-             )
-             .then((content) => {
-                 console.log("Zip file generated successfully.");
-                 updateStatusMessage(receiveStatusMessage, 'Zip file created. Starting download...', 'success');
-
-                 // Create a filename for the zip
-                 const timestamp = new Date().toISOString().replace(/[:\-.]/g, '').slice(0, 15); // YYYYMMDDTHHMMSS
-                 const zipFilename = `ShareWave_Files_${timestamp}.zip`;
-
-                 // Trigger the download
-                 const url = URL.createObjectURL(content);
-                 const link = document.createElement('a');
-                 link.href = url;
-                 link.download = zipFilename;
-                 document.body.appendChild(link);
-                 try {
-                     link.click();
-                 } catch(e) {
-                     console.error("Error triggering zip download:", e);
-                     alert("Failed to automatically start zip download. Please check your browser settings.");
-                 } finally {
-                     document.body.removeChild(link);
-                     URL.revokeObjectURL(url); // Clean up object URL
-                 }
-             })
-             .catch(err => {
-                 console.error("Error generating zip file:", err);
-                 updateStatusMessage(receiveStatusMessage, `Error creating zip file: ${err.message}`, 'error');
-             })
-             .finally(() => {
-                 // Re-enable buttons regardless of success or failure
-                 downloadAllBtn.disabled = false;
-                 downloadZipBtn.disabled = false;
-                 downloadZipBtn.innerHTML = '<i class="fas fa-file-zipper"></i> Download Zip';
-             });
-        };
-    }
-
+    };
 
     // --- Theme Toggle ---
-    function applyTheme(theme) {
+    function applyTheme(theme) { /* ... same as before ... */
         const body = document.body;
         const themeIcon = themeToggleBtn?.querySelector('i');
         const themeMeta = document.querySelector('meta[name="theme-color"]');
-
         if (theme === 'light') {
-            body.classList.add('light-theme');
-            body.classList.remove('dark-theme'); // Explicitly remove dark
-             if(themeIcon) themeIcon.classList.replace('fa-sun', 'fa-moon');
-             if(themeMeta) themeMeta.setAttribute('content', '#ffffff'); // Light theme color
-             themeToggleBtn?.setAttribute('title', 'Switch to Dark Theme');
-        } else { // Default to dark
-            body.classList.remove('light-theme');
-            body.classList.add('dark-theme'); // Explicitly add dark
-             if(themeIcon) themeIcon.classList.replace('fa-moon', 'fa-sun');
-             if(themeMeta) themeMeta.setAttribute('content', '#1e1e1e'); // Dark theme color (surface)
-             themeToggleBtn?.setAttribute('title', 'Switch to Light Theme');
+            body.classList.add('light-theme'); body.classList.remove('dark-theme');
+            if (themeIcon) themeIcon.classList.replace('fa-sun', 'fa-moon');
+            if (themeMeta) themeMeta.setAttribute('content', '#ffffff');
+            if (themeToggleBtn) themeToggleBtn.setAttribute('title', 'Switch to Dark Theme');
+        } else {
+            body.classList.remove('light-theme'); body.classList.add('dark-theme');
+            if (themeIcon) themeIcon.classList.replace('fa-moon', 'fa-sun');
+            if (themeMeta) themeMeta.setAttribute('content', '#1e1e1e');
+            if (themeToggleBtn) themeToggleBtn.setAttribute('title', 'Switch to Light Theme');
         }
-        // Save preference to local storage
-        try {
-             localStorage.setItem('sharewave-theme', theme);
-        } catch (e) {
-             console.warn("Could not save theme preference to localStorage:", e);
-        }
+        try { localStorage.setItem('sharewave-theme', theme); }
+        catch (e) { console.warn("Could not save theme preference:", e); }
     }
-
-    if (themeToggleBtn) {
-        themeToggleBtn.onclick = () => {
-            const currentTheme = document.body.classList.contains('light-theme') ? 'light' : 'dark';
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            applyTheme(newTheme);
-        };
-    }
-
-    // Load saved theme on startup
-    const savedTheme = localStorage.getItem('sharewave-theme') || 'dark'; // Default to dark
-    applyTheme(savedTheme);
-
+    if (themeToggleBtn) themeToggleBtn.onclick = () => applyTheme(document.body.classList.contains('light-theme') ? 'dark' : 'light');
+    applyTheme(localStorage.getItem('sharewave-theme') || 'dark');
 
     // --- History Panel ---
-    function toggleHistoryPanel() {
+    function toggleHistoryPanel() { /* ... same as before ... */
         if (!historyPanel) return;
         const isOpen = historyPanel.classList.toggle('open');
-        historyToggleBtn?.setAttribute('aria-expanded', isOpen);
-        if (isOpen) {
-             loadHistory(); // Load/refresh history when opening
-        }
+        historyToggleBtn?.setAttribute('aria-expanded', isOpen.toString());
+        if (isOpen) loadHistory();
     }
-
     if (historyToggleBtn) historyToggleBtn.onclick = toggleHistoryPanel;
     if (closeHistoryBtn) closeHistoryBtn.onclick = toggleHistoryPanel;
 
-    function loadHistory() {
+    function loadHistory() { /* ... same as before ... */
         if (!historyList || !clearHistoryBtn) return;
-
         let history = [];
-        try {
-            history = JSON.parse(localStorage.getItem('transferHistory') || '[]');
-             if (!Array.isArray(history)) history = []; // Ensure it's an array
-        } catch (e) {
-            console.error("Error parsing transfer history from localStorage:", e);
-            history = []; // Reset to empty on parse error
-        }
-
-        historyList.innerHTML = ''; // Clear previous entries
-
+        try { history = JSON.parse(localStorage.getItem('transferHistory') || '[]'); if (!Array.isArray(history)) history = []; }
+        catch (e) { console.error("Error parsing history:", e); history = []; }
+        historyList.innerHTML = '';
         if (history.length === 0) {
-            historyList.innerHTML = '<li class="no-history">No past transfers recorded.</li>'; // Use li for consistency
-            clearHistoryBtn.disabled = true;
-            return;
+            historyList.innerHTML = '<li class="no-history">No past transfers recorded.</li>';
+            clearHistoryBtn.disabled = true; return;
         }
-
         clearHistoryBtn.disabled = false;
-
         history.forEach(item => {
             const li = document.createElement('li');
             li.className = 'history-item';
-
             const date = new Date(item.timestamp).toLocaleString();
+            let statusIconClass = 'warning fas fa-question-circle', statusText = 'Unknown'; // Default icon too
+            if (item.cancelled) { statusIconClass = 'error fas fa-ban'; statusText = 'Cancelled'; }
+            else if (item.success) { statusIconClass = 'success fas fa-check-circle'; statusText = 'Completed'; }
+            else { statusIconClass = 'error fas fa-times-circle'; statusText = 'Failed/Incomplete'; }
 
-            let statusIcon = '<i class="fas fa-question-circle warning"></i> Unknown';
-            let statusText = 'Unknown';
-             if (item.cancelled) {
-                 statusIcon = '<i class="fas fa-ban error"></i>';
-                 statusText = 'Cancelled';
-             } else if (item.success) {
-                 statusIcon = '<i class="fas fa-check-circle success"></i>';
-                 statusText = 'Completed';
-             } else {
-                 statusIcon = '<i class="fas fa-times-circle error"></i>';
-                 statusText = 'Failed/Incomplete';
-             }
-
-             // Truncate long filenames list for display
-             let displayFilenames = item.filenames || 'N/A';
-             if (displayFilenames.length > 100) {
-                 displayFilenames = displayFilenames.substring(0, 97) + '...';
-             }
-
+            let displayFilenames = item.filenames || 'N/A';
+             // item.transferType will be 'file' as text share is removed.
+            if (displayFilenames.length > 60) displayFilenames = displayFilenames.substring(0, 57) + '...';
 
             li.innerHTML = `
                 <strong>${displayFilenames}</strong>
                 <span><i class="fas fa-database"></i> Size: ${formatBytes(item.size || 0)}</span>
                 <span><i class="fas fa-calendar-alt"></i> Date: ${date}</span>
-                <span><i class="fas fa-info-circle"></i> Status: ${statusIcon} ${statusText}</span>
-            `;
+                <span>Status: <i class="${statusIconClass}"></i> ${statusText}</span>
+                <span><i class="fas fa-exchange-alt"></i> Type: File(s)</span>`; // Always File(s) now
             historyList.appendChild(li);
         });
     }
 
-    function addHistoryEntry(filenames, size, success, cancelled = false) {
+    function addHistoryEntry(filenames, size, success, cancelled = false, transferType = 'file') { /* ... same as before ... */
+        // transferType will always be 'file' now, but kept for consistency if re-added
         let history = [];
-         try {
-            history = JSON.parse(localStorage.getItem('transferHistory') || '[]');
-             if (!Array.isArray(history)) history = [];
-         } catch (e) { history = []; }
-
+        try { history = JSON.parse(localStorage.getItem('transferHistory') || '[]'); if (!Array.isArray(history)) history = []; }
+        catch (e) { history = []; }
         const entry = {
-            timestamp: Date.now(),
-            filenames: filenames || 'N/A', // Ensure filenames is a string
-            size: size || 0,
-            success: !!success, // Ensure boolean
-            cancelled: !!cancelled // Ensure boolean
+            timestamp: Date.now(), filenames: filenames || 'N/A', size: size || 0,
+            success: !!success, cancelled: !!cancelled, transferType: transferType
         };
-
-        history.unshift(entry); // Add to the beginning
-
-        // Limit history size
-        if (history.length > HISTORY_LIMIT) {
-            history = history.slice(0, HISTORY_LIMIT); // Keep only the latest entries
-        }
-
-        try {
-            localStorage.setItem('transferHistory', JSON.stringify(history));
-        } catch (e) {
-             console.warn("Could not save updated history to localStorage:", e);
-        }
-
-        // Refresh history panel if it's currently open
-        if (historyPanel && historyPanel.classList.contains('open')) {
-            loadHistory();
-        }
+        history.unshift(entry);
+        if (history.length > HISTORY_LIMIT) history = history.slice(0, HISTORY_LIMIT);
+        try { localStorage.setItem('transferHistory', JSON.stringify(history)); }
+        catch (e) { console.warn("Could not save history:", e); }
+        if (historyPanel && historyPanel.classList.contains('open')) loadHistory();
     }
-
-    if (clearHistoryBtn) {
-        clearHistoryBtn.onclick = () => {
-            if (confirm('Are you sure you want to clear the entire transfer history? This cannot be undone.')) {
-                 try {
-                    localStorage.removeItem('transferHistory');
-                    console.log("Transfer history cleared.");
-                    loadHistory(); // Refresh the panel (will show 'No history')
-                 } catch (e) {
-                     console.error("Failed to clear history from localStorage:", e);
-                     alert("Could not clear history.");
-                 }
-            }
-        };
-    }
-
-
+    if (clearHistoryBtn) clearHistoryBtn.onclick = () => { /* ... same as before, uses showToast ... */
+        if (confirm('Clear transfer history? This cannot be undone.')) {
+            try { localStorage.removeItem('transferHistory'); loadHistory(); showToast('History cleared.', 'info'); }
+            catch (e) { console.error("Failed to clear history:", e); showToast('Could not clear history.', 'error');}
+        }
+    };
+    
     // --- Initialization ---
-    resetState(true); // Initial full reset
-    switchTab('send'); // Start on the Send tab by default
+    if(currentYearSpan) currentYearSpan.textContent = new Date().getFullYear();
+    resetUiToInitial(sendTabState, 'send'); // Initialize Send tab UI state
+    resetUiToInitial(receiveTabState, 'receive'); // Initialize Receive tab UI state
+    switchTab('send'); // Start on Send tab by default, this will call restoreTabState for 'send'
 
 }); // End DOMContentLoaded
