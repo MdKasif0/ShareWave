@@ -3,431 +3,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ShareWave V5.1 - Zip Download & Fixes</title>
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#1e1e1e"/>
-    <meta name="description" content="Secure P2P file transfer using WebRTC with QR code, chat, pause/resume, folder zipping, password, and more.">
+    <title>ShareWave - Secure P2P File Sharing</title>
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e1e1e">
+    <meta name="description" content="ShareWave: Free, secure P2P file sharing using WebRTC. Features QR code connection, chat, password protection, and more. No server uploads.">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="style.css">
 
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js"></script>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- External libraries (ensure these are up-to-date or consider local hosting) -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.js" defer></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
 
 </head>
-<body class="dark-theme"> <div class="app-container">
-        <main class="sharewave-container">
+<body class="dark-theme"> <!-- Default theme -->
+
+    <div class="app-container">
+        <main class="sharewave-container" aria-labelledby="app-title">
             <header class="header-area">
                 <div class="title-bar">
-                    <i class="fas fa-wave-square icon"></i> <!-- Updated Icon -->
-                    <h1>ShareWave V5.1</h1>
+                    <i class="fas fa-wave-square icon" aria-hidden="true"></i>
+                    <h1 id="app-title">ShareWave</h1>
                 </div>
                 <div class="controls-area">
-                    <button
-                        id="history-toggle-btn"
-                        class="history-toggle-btn"
-                        aria-label="Toggle Transfer History"
-                        title="Transfer History"
-                    >
-                        <i class="fas fa-history"></i>
+                    <button id="history-toggle-btn" class="history-toggle-btn" aria-label="Toggle Transfer History" title="Transfer History" aria-expanded="false">
+                        <i class="fas fa-history" aria-hidden="true"></i>
                     </button>
-                    <button
-                        id="theme-toggle-btn"
-                        class="theme-toggle-btn"
-                        aria-label="Toggle Theme"
-                        title="Toggle Theme"
-                    >
-                        <i class="fas fa-sun"></i> </button>
+                    <button id="theme-toggle-btn" class="theme-toggle-btn" aria-label="Toggle Theme" title="Toggle Theme">
+                        <i class="fas fa-sun" aria-hidden="true"></i> <!-- Icon changes with theme -->
+                    </button>
                 </div>
             </header>
 
-            <div class="tabs">
-                <button
-                    id="send-tab-btn"
-                    class="tab-btn active"
-                    onclick="switchTab('send')"
-                >
-                    <i class="fas fa-paper-plane"></i> Send
+            <nav class="tabs" aria-label="Main navigation">
+                <button id="send-tab-btn" class="tab-btn active" onclick="switchTab('send')" role="tab" aria-selected="true" aria-controls="send-section">
+                    <i class="fas fa-paper-plane" aria-hidden="true"></i> Send Files
                 </button>
-                <button
-                    id="receive-tab-btn"
-                    class="tab-btn"
-                    onclick="switchTab('receive')"
-                >
-                    <i class="fas fa-parachute-box"></i> Receive
+                <button id="receive-tab-btn" class="tab-btn" onclick="switchTab('receive')" role="tab" aria-selected="false" aria-controls="receive-section">
+                    <i class="fas fa-parachute-box" aria-hidden="true"></i> Receive Files
                 </button>
-            </div>
+            </nav>
 
             <div class="content">
-                <div id="send-section" class="tab-content active">
+                <!-- Send Files Section -->
+                <section id="send-section" class="tab-content active" role="tabpanel" aria-labelledby="send-tab-btn">
                     <div class="main-content-area">
                         <div class="transfer-area">
-                            <div class="upload-area" id="drop-zone">
-                                <input
-                                    type="file"
-                                    id="file-input"
-                                    class="visually-hidden"
-                                    multiple
-                                >
-                                <input
-                                    type="file"
-                                    id="folder-input"
-                                    class="visually-hidden"
-                                    webkitdirectory
-                                    directory
-                                    multiple
-                                >
+                            <div class="upload-area" id="drop-zone" role="button" tabindex="0" aria-label="Drop files here or click to browse">
+                                <input type="file" id="file-input" class="visually-hidden" multiple aria-hidden="true">
+                                <input type="file" id="folder-input" class="visually-hidden" webkitdirectory directory multiple aria-hidden="true">
                                 <div class="upload-area-content">
-                                    <div class="upload-icon">
-                                        <i class="fas fa-cloud-arrow-up"></i>
-                                    </div>
+                                    <div class="upload-icon"><i class="fas fa-cloud-arrow-up" aria-hidden="true"></i></div>
                                     <p>Select or Drop Files / Folders</p>
                                     <small>
                                         Share securely.
                                         <a href="#" id="browse-link">Browse Files</a> or
-                                        <label for="folder-input" class="folder-input-label">
-                                            Select Folder
-                                        </label>
+                                        <label for="folder-input" class="folder-input-label">Select Folder</label>
                                     </small>
                                 </div>
                             </div>
 
-                            <div
-                                id="password-section-sender"
-                                class="password-section hidden"
-                            >
-                                <label for="password-input-sender">
-                                    Optional: Set Transfer Password
-                                </label>
+                            <div id="password-section-sender" class="password-section hidden" role="region" aria-label="Password settings for sending">
+                                <label for="password-input-sender">Optional: Set Transfer Password</label>
                                 <div class="password-input-wrapper">
-                                    <input
-                                        type="password"
-                                        id="password-input-sender"
-                                        class="password-input"
-                                        placeholder="Leave blank for no password"
-                                    >
-                                    <button
-                                        class="toggle-password-vis"
-                                        onclick="togglePasswordVisibility('password-input-sender', this)"
-                                        aria-label="Toggle password visibility"
-                                    >
-                                        <i class="fas fa-eye"></i>
+                                    <input type="password" id="password-input-sender" class="password-input" placeholder="Leave blank for no password" aria-describedby="password-sender-hint">
+                                    <button class="toggle-password-vis" onclick="togglePasswordVisibility('password-input-sender', this)" aria-label="Toggle password visibility" type="button">
+                                        <i class="fas fa-eye" aria-hidden="true"></i>
                                     </button>
                                 </div>
+                                <small id="password-sender-hint" class="visually-hidden">Enter a password to protect your transfer.</small>
                             </div>
 
-                            <div
-                                id="selected-files-section"
-                                class="selected-files-section hidden"
-                            >
+                            <div id="selected-files-section" class="selected-files-section hidden" role="region" aria-label="Selected files for sending">
                                 <div class="selected-files-header">
                                     <h2>Selected Items</h2>
-                                    <span id="file-summary">0 items (0 B)</span>
+                                    <span id="file-summary" aria-live="polite">0 items (0 B)</span>
                                 </div>
                                 <ul id="selected-files-list"></ul>
                             </div>
 
                             <button id="generate-btn" class="btn btn-primary" disabled>
-                                <i class="fas fa-share-alt"></i> Generate Share Code
+                                <i class="fas fa-share-alt" aria-hidden="true"></i> Generate Share Code
                             </button>
 
-                            <div id="offer-step" class="connection-step hidden">
-                                <h2>
-                                    <span class="step-number">1</span> Share Your Code
-                                </h2>
-                                <p class="instructions">
-                                    Show this QR code to the receiver or send the text code.
-                                    Inform them if you set a password.
-                                </p>
+                            <div id="offer-step" class="connection-step hidden" role="region" aria-label="Sender's share code">
+                                <h2><span class="step-number" aria-hidden="true">1</span> Share Your Code</h2>
+                                <p class="instructions">Show this QR code to the receiver or send the text code. Inform them if you set a password.</p>
                                 <div class="code-display-area">
                                     <div class="qr-code-section">
-                                        <div class="qr-code-box" id="offer-qr-code"></div>
+                                        <div class="qr-code-box" id="offer-qr-code" aria-label="Offer QR Code"></div>
                                         <small>Receiver scans this</small>
                                     </div>
                                     <div class="text-code-section">
-                                        <textarea
-                                            id="offer-sdp"
-                                            readonly
-                                            aria-label="Your Offer Code"
-                                        ></textarea>
-                                        <button
-                                            class="copy-btn"
-                                            onclick="copyToClipboard('offer-sdp')"
-                                            aria-label="Copy Offer Code"
-                                        >
-                                            <i class="far fa-copy"></i>
-                                            <span class="tooltip">Copy</span>
+                                        <label for="offer-sdp" class="visually-hidden">Your Offer Code</label>
+                                        <textarea id="offer-sdp" readonly aria-label="Your Offer Code"></textarea>
+                                        <button class="copy-btn" onclick="copyToClipboard('offer-sdp')" aria-label="Copy Offer Code" type="button">
+                                            <i class="far fa-copy" aria-hidden="true"></i> <span class="tooltip">Copy</span>
                                         </button>
                                     </div>
                                 </div>
                             </div>
 
-                            <div id="answer-step" class="connection-step hidden">
-                                <h2>
-                                    <span class="step-number">2</span> Get Receiver's Code
-                                </h2>
-                                <p class="instructions">
-                                    Scan the QR code shown by the receiver OR paste their
-                                    text code below.
-                                </p>
-                                <button id="scan-answer-qr-btn" class="btn btn-secondary">
-                                    <i class="fas fa-qrcode"></i> Scan Receiver's QR Code
+                            <div id="answer-step" class="connection-step hidden" role="region" aria-label="Receiver's response code input">
+                                <h2><span class="step-number" aria-hidden="true">2</span> Get Receiver's Code</h2>
+                                <p class="instructions">Scan the QR code shown by the receiver OR paste their text code below.</p>
+                                <button id="scan-answer-qr-btn" class="btn btn-secondary" type="button">
+                                    <i class="fas fa-qrcode" aria-hidden="true"></i> Scan Receiver's QR Code
                                 </button>
-                                <div id="answer-scanner-area" class="scanner-area hidden">
-                                    <div
-                                        id="answer-scanner-box"
-                                        class="scanner-box"
-                                    ></div>
-                                    <p id="answer-scan-status"></p>
+                                <div id="answer-scanner-area" class="scanner-area hidden" aria-label="QR Code Scanner for Receiver's Code">
+                                    <div id="answer-scanner-box" class="scanner-box"></div>
+                                    <p id="answer-scan-status" aria-live="polite"></p>
                                 </div>
                                 <div class="text-code-section" style="margin-top: 1rem;">
-                                    <textarea
-                                        id="answer-sdp"
-                                        placeholder="Or paste receiver's text code here..."
-                                        aria-label="Receiver's Answer Code"
-                                    ></textarea>
+                                    <label for="answer-sdp" class="visually-hidden">Receiver's Answer Code</label>
+                                    <textarea id="answer-sdp" placeholder="Or paste receiver's text code here..." aria-label="Receiver's Answer Code"></textarea>
                                 </div>
-                                <button id="connect-btn" class="btn btn-primary">
-                                    <i class="fas fa-link"></i> Connect
+                                <button id="connect-btn" class="btn btn-primary" type="button">
+                                    <i class="fas fa-link" aria-hidden="true"></i> Connect
                                 </button>
                             </div>
 
-                            <div id="send-status-section" class="status-section hidden">
-                                <h2>
-                                    <i class="fas fa-shipping-fast"></i> Transfer Status
-                                </h2>
-                                <p id="send-status-message" class="status-message info">
-                                    Initializing...
-                                </p>
-                                <div class="progress-details">
+                            <div id="send-status-section" class="status-section hidden" role="region" aria-label="File sending status">
+                                <h2><i class="fas fa-shipping-fast" aria-hidden="true"></i> Transfer Status</h2>
+                                <p id="send-status-message" class="status-message info" aria-live="assertive">Initializing...</p>
+                                <div class="progress-details" aria-label="Overall send progress">
                                     <div class="progress-info">
-                                        <span
-                                            id="send-progress-label"
-                                            class="progress-label"
-                                        >
-                                            Overall Progress
-                                        </span>
+                                        <span id="send-progress-label" class="progress-label">Overall Progress</span>
                                         <span class="speed-etr">
-                                            <span id="speed-indicator">-- MB/s</span>
-                                            <span id="etr-indicator">ETR: --</span>
+                                            <span id="speed-indicator" aria-label="Transfer speed">-- MB/s</span>
+                                            <span id="etr-indicator" aria-label="Estimated time remaining">ETR: --</span>
                                         </span>
                                     </div>
-                                    <div class="progress-bar-container">
-                                        <div
-                                            id="send-progress-bar"
-                                            class="progress-bar"
-                                        ></div>
+                                    <div class="progress-bar-container" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-labelledby="send-progress-label">
+                                        <div id="send-progress-bar" class="progress-bar" style="width: 0%;"></div>
                                     </div>
-                                    <p id="send-progress-text" class="progress-text">
-                                        0%
-                                    </p>
+                                    <p id="send-progress-text" class="progress-text" aria-live="polite">0%</p>
                                 </div>
                                 <div class="button-group">
-                                    <button
-                                        id="pause-resume-btn"
-                                        class="btn btn-secondary"
-                                        disabled
-                                    >
-                                        <i class="fas fa-pause"></i> Pause
+                                    <button id="pause-resume-btn" class="btn btn-secondary" disabled type="button">
+                                        <i class="fas fa-pause" aria-hidden="true"></i> Pause
                                     </button>
-                                    <button
-                                        id="cancel-transfer-btn"
-                                        class="btn btn-danger"
-                                        disabled
-                                    >
-                                        <i class="fas fa-times"></i> Cancel
+                                    <button id="cancel-transfer-btn" class="btn btn-danger" disabled type="button">
+                                        <i class="fas fa-times" aria-hidden="true"></i> Cancel
                                     </button>
                                 </div>
                             </div>
                         </div>
                         <aside class="side-panel">
-                            <div id="chat-panel-sender" class="chat-panel hidden">
-                                <h3>
-                                    <i class="fas fa-comments"></i> Chat
-                                </h3>
-                                <ul
-                                    class="chat-messages"
-                                    id="chat-messages-sender"
-                                ></ul>
+                            <div id="chat-panel-sender" class="chat-panel hidden" role="log" aria-label="Chat with receiver">
+                                <h3><i class="fas fa-comments" aria-hidden="true"></i> Chat</h3>
+                                <ul class="chat-messages" id="chat-messages-sender" aria-live="polite"></ul>
                                 <div class="chat-input-area">
-                                    <input
-                                        type="text"
-                                        id="chat-input-sender"
-                                        class="chat-input"
-                                        placeholder="Type message..."
-                                        disabled
-                                    >
-                                    <button
-                                        id="chat-send-btn-sender"
-                                        class="chat-send-btn"
-                                        disabled
-                                    >
-                                        <i class="fas fa-paper-plane"></i>
+                                    <label for="chat-input-sender" class="visually-hidden">Type your message</label>
+                                    <input type="text" id="chat-input-sender" class="chat-input" placeholder="Type message..." disabled>
+                                    <button id="chat-send-btn-sender" class="chat-send-btn" disabled aria-label="Send chat message" type="button">
+                                        <i class="fas fa-paper-plane" aria-hidden="true"></i>
                                     </button>
                                 </div>
                             </div>
                         </aside>
                     </div>
-                </div>
+                </section>
 
-                <div id="receive-section" class="tab-content">
+                <!-- Receive Files Section -->
+                <section id="receive-section" class="tab-content" role="tabpanel" aria-labelledby="receive-tab-btn">
                     <div class="main-content-area">
                         <div class="transfer-area">
-                            <div id="offer-input-step" class="connection-step">
-                                <h2>
-                                    <span class="step-number">1</span> Get Sender's Code
-                                </h2>
-                                <p class="instructions">
-                                    Ask the sender for their share code. Scan their QR or
-                                    paste the text code below.
-                                </p>
-                                <button id="scan-offer-qr-btn" class="btn btn-secondary">
-                                    <i class="fas fa-qrcode"></i> Scan Sender's QR Code
+                            <div id="offer-input-step" class="connection-step" role="region" aria-label="Sender's code input">
+                                <h2><span class="step-number" aria-hidden="true">1</span> Get Sender's Code</h2>
+                                <p class="instructions">Ask the sender for their share code. Scan their QR or paste the text code below.</p>
+                                <button id="scan-offer-qr-btn" class="btn btn-secondary" type="button">
+                                    <i class="fas fa-qrcode" aria-hidden="true"></i> Scan Sender's QR Code
                                 </button>
-                                <div id="offer-scanner-area" class="scanner-area hidden">
-                                    <div
-                                        id="offer-scanner-box"
-                                        class="scanner-box"
-                                    ></div>
-                                    <p id="offer-scan-status"></p>
+                                <div id="offer-scanner-area" class="scanner-area hidden" aria-label="QR Code Scanner for Sender's Code">
+                                    <div id="offer-scanner-box" class="scanner-box"></div>
+                                    <p id="offer-scan-status" aria-live="polite"></p>
                                 </div>
                                 <div class="text-code-section" style="margin-top: 1rem;">
-                                    <textarea
-                                        id="offer-sdp-input"
-                                        placeholder="Or paste sender's text code here..."
-                                        aria-label="Sender's Offer Code"
-                                    ></textarea>
+                                    <label for="offer-sdp-input" class="visually-hidden">Sender's Offer Code</label>
+                                    <textarea id="offer-sdp-input" placeholder="Or paste sender's text code here..." aria-label="Sender's Offer Code"></textarea>
                                 </div>
-                                <button id="generate-answer-btn" class="btn btn-primary">
-                                    <i class="fas fa-reply"></i> Generate Response Code
+                                <button id="generate-answer-btn" class="btn btn-primary" type="button">
+                                    <i class="fas fa-reply" aria-hidden="true"></i> Generate Response Code
                                 </button>
                             </div>
 
-                            <div id="answer-output-step" class="connection-step hidden">
-                                <h2>
-                                    <span class="step-number">2</span> Share Your Code
-                                </h2>
-                                <p class="instructions">
-                                    Show this QR code to the sender or send them the text
-                                    code. Keep this tab open.
-                                </p>
+                            <div id="answer-output-step" class="connection-step hidden" role="region" aria-label="Receiver's response code">
+                                <h2><span class="step-number" aria-hidden="true">2</span> Share Your Code</h2>
+                                <p class="instructions">Show this QR code to the sender or send them the text code. Keep this tab open.</p>
                                 <div class="code-display-area">
                                     <div class="qr-code-section">
-                                        <div
-                                            class="qr-code-box"
-                                            id="answer-qr-code"
-                                        ></div>
+                                        <div class="qr-code-box" id="answer-qr-code" aria-label="Your Answer QR Code"></div>
                                         <small>Sender scans this</small>
                                     </div>
                                     <div class="text-code-section">
-                                        <textarea
-                                            id="answer-sdp-output"
-                                            readonly
-                                            aria-label="Your Answer Code"
-                                        ></textarea>
-                                        <button
-                                            class="copy-btn"
-                                            onclick="copyToClipboard('answer-sdp-output')"
-                                            aria-label="Copy Answer Code"
-                                        >
-                                            <i class="far fa-copy"></i>
-                                            <span class="tooltip">Copy</span>
+                                        <label for="answer-sdp-output" class="visually-hidden">Your Answer Code</label>
+                                        <textarea id="answer-sdp-output" readonly aria-label="Your Answer Code"></textarea>
+                                        <button class="copy-btn" onclick="copyToClipboard('answer-sdp-output')" aria-label="Copy Answer Code" type="button">
+                                            <i class="far fa-copy" aria-hidden="true"></i> <span class="tooltip">Copy</span>
                                         </button>
                                     </div>
                                 </div>
-                                <p
-                                    id="receiver-wait-message"
-                                    class="status-message info"
-                                    style="margin-top: 1.5rem; margin-left: 0;"
-                                >
-                                    Waiting for sender to connect...
-                                </p>
+                                <p id="receiver-wait-message" class="status-message info" style="margin-top: 1.5rem; margin-left: 0;" aria-live="polite">Waiting for sender to connect...</p>
                             </div>
 
-                            <div
-                                id="password-section-receiver"
-                                class="password-section hidden"
-                                style="margin-top: 2rem;"
-                            >
-                                <label for="password-input-receiver">
-                                    Enter Transfer Password (Required by Sender)
-                                </label>
+                            <div id="password-section-receiver" class="password-section hidden" style="margin-top: 2rem;" role="region" aria-label="Password input for receiving">
+                                <label for="password-input-receiver">Enter Transfer Password (Required by Sender)</label>
                                 <div class="password-input-wrapper">
-                                    <input
-                                        type="password"
-                                        id="password-input-receiver"
-                                        class="password-input"
-                                        placeholder="Ask sender for password"
-                                    >
-                                    <button
-                                        class="toggle-password-vis"
-                                        onclick="togglePasswordVisibility('password-input-receiver', this)"
-                                        aria-label="Toggle password visibility"
-                                    >
-                                        <i class="fas fa-eye"></i>
+                                    <input type="password" id="password-input-receiver" class="password-input" placeholder="Ask sender for password" aria-describedby="password-receiver-hint">
+                                    <button class="toggle-password-vis" onclick="togglePasswordVisibility('password-input-receiver', this)" aria-label="Toggle password visibility" type="button">
+                                        <i class="fas fa-eye" aria-hidden="true"></i>
                                     </button>
-                                    <button
-                                        id="verify-password-btn"
-                                        class="btn btn-primary"
-                                    >
-                                        <i class="fas fa-check"></i> Verify
+                                    <button id="verify-password-btn" class="btn btn-primary" type="button">
+                                        <i class="fas fa-check" aria-hidden="true"></i> Verify
                                     </button>
                                 </div>
+                                <small id="password-receiver-hint" class="visually-hidden">Enter the password provided by the sender to access the files.</small>
                             </div>
 
-                            <div id="receive-status-section" class="status-section hidden">
-                                <h2>
-                                    <i class="fas fa-download"></i> Receiving Files
-                                </h2>
-                                <p id="receive-status-message" class="status-message info">
-                                    Waiting for connection...
-                                </p>
-                                <div class="progress-details">
+                            <div id="receive-status-section" class="status-section hidden" role="region" aria-label="File receiving status">
+                                <h2><i class="fas fa-download" aria-hidden="true"></i> Receiving Files</h2>
+                                <p id="receive-status-message" class="status-message info" aria-live="assertive">Waiting for connection...</p>
+                                <div class="progress-details" aria-label="Overall receive progress">
                                     <div class="progress-info">
-                                        <span
-                                            id="receive-progress-label"
-                                            class="progress-label"
-                                        >
-                                            Overall Progress
-                                        </span>
+                                        <span id="receive-progress-label" class="progress-label">Overall Progress</span>
                                         <span class="speed-etr">
-                                            <span id="receive-speed-indicator">-- MB/s</span>
+                                            <span id="receive-speed-indicator" aria-label="Transfer speed">-- MB/s</span>
                                         </span>
                                     </div>
-                                    <div class="progress-bar-container">
-                                        <div
-                                            id="receive-progress-bar"
-                                            class="progress-bar"
-                                        ></div>
+                                    <div class="progress-bar-container" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-labelledby="receive-progress-label">
+                                        <div id="receive-progress-bar" class="progress-bar" style="width: 0%;"></div>
                                     </div>
-                                    <p id="receive-progress-text" class="progress-text">
-                                        0%
-                                    </p>
+                                    <p id="receive-progress-text" class="progress-text" aria-live="polite">0%</p>
                                 </div>
-                                <div id="received-files-section" class="hidden">
+                                <div id="received-files-section" class="hidden" role="region" aria-label="Received files list">
                                     <div class="received-files-header">
                                         <h3>Successfully Received</h3>
                                         <div class="received-actions button-group">
-                                            <button
-                                                id="download-all-btn"
-                                                class="btn btn-secondary"
-                                                disabled
-                                            >
-                                                <i class="fas fa-file-archive"></i> Download All
+                                            <button id="download-all-btn" class="btn btn-secondary" disabled type="button">
+                                                <i class="fas fa-file-archive" aria-hidden="true"></i> Download All
                                             </button>
-                                            <button
-                                                id="download-zip-btn"
-                                                class="btn btn-secondary"
-                                                disabled
-                                            >
-                                                <i class="fas fa-file-zipper"></i> Download Zip
+                                            <button id="download-zip-btn" class="btn btn-secondary" disabled type="button">
+                                                <i class="fas fa-file-zipper" aria-hidden="true"></i> Download Zip
                                             </button>
                                         </div>
                                     </div>
@@ -436,99 +260,60 @@
                             </div>
                         </div>
                         <aside class="side-panel">
-                            <div id="chat-panel-receiver" class="chat-panel hidden">
-                                <h3>
-                                    <i class="fas fa-comments"></i> Chat
-                                </h3>
-                                <ul
-                                    class="chat-messages"
-                                    id="chat-messages-receiver"
-                                ></ul>
+                            <div id="chat-panel-receiver" class="chat-panel hidden" role="log" aria-label="Chat with sender">
+                                <h3><i class="fas fa-comments" aria-hidden="true"></i> Chat</h3>
+                                <ul class="chat-messages" id="chat-messages-receiver" aria-live="polite"></ul>
                                 <div class="chat-input-area">
-                                    <input
-                                        type="text"
-                                        id="chat-input-receiver"
-                                        class="chat-input"
-                                        placeholder="Type message..."
-                                        disabled
-                                    >
-                                    <button
-                                        id="chat-send-btn-receiver"
-                                        class="chat-send-btn"
-                                        disabled
-                                    >
-                                        <i class="fas fa-paper-plane"></i>
+                                    <label for="chat-input-receiver" class="visually-hidden">Type your message</label>
+                                    <input type="text" id="chat-input-receiver" class="chat-input" placeholder="Type message..." disabled>
+                                    <button id="chat-send-btn-receiver" class="chat-send-btn" disabled aria-label="Send chat message" type="button">
+                                        <i class="fas fa-paper-plane" aria-hidden="true"></i>
                                     </button>
                                 </div>
                             </div>
                         </aside>
                     </div>
-                </div>
+                </section>
             </div>
         </main>
 
-        <aside id="history-panel" class="history-panel">
+        <aside id="history-panel" class="history-panel" role="complementary" aria-label="Transfer History">
             <div class="history-header">
-                <h2>
-                    <i class="fas fa-history"></i> Transfer History
-                </h2>
+                <h2><i class="fas fa-history" aria-hidden="true"></i> Transfer History</h2>
                 <div>
-                    <button
-                        id="clear-history-btn"
-                        class="clear-history-btn"
-                        aria-label="Clear History"
-                    >
-                        <i class="fas fa-trash"></i>
+                    <button id="clear-history-btn" class="clear-history-btn" aria-label="Clear History" type="button" disabled>
+                        <i class="fas fa-trash" aria-hidden="true"></i>
                     </button>
-                    <button
-                        id="close-history-btn"
-                        class="close-history-btn"
-                        aria-label="Close History"
-                    >
-                        <i class="fas fa-times"></i>
+                    <button id="close-history-btn" class="close-history-btn" aria-label="Close History" type="button">
+                        <i class="fas fa-times" aria-hidden="true"></i>
                     </button>
                 </div>
             </div>
             <ul id="history-list">
-                <p class="no-history">No past transfers recorded.</p>
+                <li class="no-history">No past transfers recorded.</li> <!-- Default message as li -->
             </ul>
         </aside>
 
-        <div id="preview-modal" class="modal" onclick="closeModalOnClick(event)">
-            <span class="modal-close" onclick="closePreviewModal()">×</span>
+        <div id="preview-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="preview-modal-title" onclick="closeModalOnClick(event)">
+            <span class="modal-close" onclick="closePreviewModal()" aria-label="Close preview" role="button" tabindex="0">×</span>
             <div class="modal-content">
-                <img
-                    id="modal-image-preview"
-                    src=""
-                    alt="Image Preview"
-                    style="display: none;"
-                >
-                <video
-                    id="modal-video-preview"
-                    src=""
-                    controls
-                    style="display: none;"
-                ></video>
+                <!-- Title for screen readers, content is visual -->
+                <h2 id="preview-modal-title" class="visually-hidden">File Preview</h2>
+                <img id="modal-image-preview" src="" alt="Image Preview" style="display: none;">
+                <video id="modal-video-preview" src="" controls style="display: none;" preload="metadata"></video>
             </div>
         </div>
 
-        <footer class="text-center mt-8 text-xs text-gray-500">
-            Powered by WebRTC DataChannel. No servers involved in transfer.
-        </footer>
+        <!-- For Toast Notifications (JS will populate) -->
+        <div id="toast-container" class="toast-notification-container" aria-live="assertive" aria-atomic="true"></div>
 
-    </div> <script src="main.js" defer></script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-              console.log('ServiceWorker registration successful with scope: ', registration.scope);
-            })
-            .catch(error => {
-              console.log('ServiceWorker registration failed: ', error);
-            });
-        });
-      }
-    </script>
+        <footer>
+            Powered by WebRTC DataChannel. No servers involved in transfer.
+            <br> ShareWave © <span id="current-year">2024</span>.
+            <a href="https://github.com/your-repo-link" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+        </footer>
+    </div>
+
+    <script src="main.js" defer></script>
 </body>
-</html>
+    </html>
